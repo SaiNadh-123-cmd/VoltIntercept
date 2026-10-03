@@ -14,12 +14,16 @@ import Webcam from "react-webcam";
 import { useMission } from "../context/MissionContext";
 import { BATTERIES, BATTERY_PROFILES, type BatteryProfile } from "./simulator/batteries";
 
-type DetectionResult = {
+export type AiScanResult = {
   detected: boolean;
-  type: string;
-  capacity: string;
-  matchId: string;
-  confidence: number;
+  batteryName?: string;
+  capacity?: string;
+  matchId?: string;
+  confidence?: number;
+  dangerLevel?: string;
+  financialDamage?: number;
+  weightKg?: number;
+  message?: string;
 };
 
 type InterceptionResult = {
@@ -27,16 +31,34 @@ type InterceptionResult = {
   capacity: string;
   matchId: string;
   confidence: number;
+  dangerLevel: string;
   saved: string;
 };
 
 type Source = "idle" | "webcam" | "upload";
 
 type VisionScannerProps = {
-  updateMetrics: (profile: BatteryProfile, confidence: number) => void;
+  onHazardDetected: (data: AiScanResult) => void;
 };
 
-const GEMINI_PROMPT = `You are an industrial safety AI. Analyze this image. Is there a lithium-ion or alkaline battery present? Identify the type. Respond STRICTLY with a raw JSON object in this format, with no markdown formatting or backticks: { "detected": true/false, "type": "Battery Name", "capacity": "XXXX mAh", "matchId": "[Use one of these exactly: button-cell, vape-lipo, 18650-cell, smartphone-lipo, drone-high-c, tablet-pouch, powertool-pack, ebike-pack]", "confidence": 95 }`;
+const GEMINI_PROMPT = `Analyze this image for hazardous lithium-ion, lipo, or alkaline batteries.
+Respond STRICTLY with raw JSON matching this structure (no markdown, no backticks, no extra text):
+{
+  "detected": true,
+  "batteryName": "18650 Cylindrical Cell",
+  "capacity": "3000 mAh",
+  "matchId": "18650-cell",
+  "confidence": 96,
+  "dangerLevel": "High",
+  "financialDamage": 120000,
+  "weightKg": 0.05
+}
+If no battery or hazardous cell is present, return:
+{
+  "detected": false,
+  "batteryName": "No Battery Detected",
+  "confidence": 0
+}`;
 
 const MATCH_KEYWORDS: Array<[string, string]> = [
   ["button-cell", "button-cell"],
@@ -68,7 +90,7 @@ const MATCH_KEYWORDS: Array<[string, string]> = [
   ["ev-module", "ev-module"],
 ];
 
-function resolveProfile(matchId: string): BatteryProfile {
+export function resolveProfile(matchId: string): BatteryProfile {
   const normalized = (matchId ?? "").trim().toLowerCase();
   if (normalized) {
     const exact = BATTERY_PROFILES.find((b) => b.id === normalized);
@@ -101,14 +123,16 @@ function CornerBrackets() {
   );
 }
 
-export function VisionScanner({ updateMetrics }: VisionScannerProps) {
+export function VisionScanner({ onHazardDetected }: VisionScannerProps) {
   const { setAlertMode, ejectFlash } = useMission();
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   const [source, setSource] = useState<Source>("idle");
   const [imageSrc, setImageSrc] = useState<string | null>(null);
-  const [scanning, setScanning] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [ejecting, setEjecting] = useState(false);
-  const [result, setResult] = useState<InterceptionResult | null>(null);
+  const [scanResult, setScanResult] = useState<InterceptionResult | null>(null);
+  const [streamClear, setStreamClear] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState(false);
   const [nextItem, setNextItem] = useState(false);
@@ -116,6 +140,8 @@ export function VisionScanner({ updateMetrics }: VisionScannerProps) {
   const webcamRef = useRef<Webcam>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const prevFlash = useRef(ejectFlash);
+  const hazardHandler = useRef(onHazardDetected);
+  hazardHandler.current = onHazardDetected;
 
   useEffect(() => {
     if (prevFlash.current && !ejectFlash) {
@@ -127,117 +153,142 @@ export function VisionScanner({ updateMetrics }: VisionScannerProps) {
     prevFlash.current = ejectFlash;
   }, [ejectFlash]);
 
-  const runGemini = useCallback(
-    async (dataUrl: string) => {
-      if (!apiKey) {
-        setError("API Key is missing from environment variables.");
-        return;
-      }
-      setScanning(true);
-      setError(null);
-      setResult(null);
+  const analyzeImage = async (base64ImageWithHeader: string) => {
+    setIsAnalyzing(true);
+    setError(null);
+    setScanResult(null);
+    setStreamClear(false);
+
+    try {
+      if (!apiKey) throw new Error("API key not configured");
+
+      const base64Data = base64ImageWithHeader.includes(",")
+        ? base64ImageWithHeader.split(",")[1]
+        : base64ImageWithHeader;
+
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+      const prompt = GEMINI_PROMPT;
+
+      const result = await model.generateContent([
+        prompt,
+        {
+          inlineData: {
+            data: base64Data,
+            mimeType: "image/jpeg",
+          },
+        },
+      ]);
+
+      const responseText = result.response.text();
+      const cleanJson = responseText.replace(/```json/g, "").replace(/```/g, "").trim();
+      let data: AiScanResult;
       try {
-        const base64Image = dataUrl.includes(",")
-          ? dataUrl.split(",")[1]
-          : dataUrl;
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-        const geminiResult = await model.generateContent({
-          contents: [
-            {
-              role: "user",
-              parts: [
-                { text: GEMINI_PROMPT },
-                { inlineData: { data: base64Image, mimeType: "image/jpeg" } },
-              ],
-            },
-          ],
-        });
-
-        const rawText = geminiResult.response.text();
-        const cleanJson = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
-        let aiResult: Record<string, unknown>;
-        try {
-          aiResult = JSON.parse(cleanJson);
-        } catch {
-          const jsonMatch = cleanJson.match(/\{[\s\S]*\}/);
-          if (!jsonMatch) throw new Error("No JSON object in AI response");
-          aiResult = JSON.parse(jsonMatch[0]);
-        }
-
-        const detection: DetectionResult = {
-          detected: Boolean(aiResult.detected),
-          type: String(aiResult.type ?? "Unknown"),
-          capacity: String(aiResult.capacity ?? "—"),
-          matchId: String(aiResult.matchId ?? ""),
-          confidence: Number(aiResult.confidence ?? 0),
-        };
-
-        if (detection.detected) {
-          const profile = resolveProfile(detection.matchId);
-          setEjecting(true);
-          setFlash(true);
-          setAlertMode(true);
-          window.setTimeout(() => {
-            updateMetrics(profile, detection.confidence);
-            setResult({
-              type: detection.type,
-              capacity: detection.capacity,
-              matchId: profile.id,
-              confidence: detection.confidence,
-              saved: profile.financialDamage,
-            });
-            setEjecting(false);
-          }, 1200);
-          window.setTimeout(() => {
-            setFlash(false);
-            setAlertMode(false);
-          }, 2800);
-        }
-        setScanCount((c) => c + 1);
-      } catch (err) {
-        console.error(err);
-        setError("Gemini vision analysis failed. Check the .env key and network.");
-      } finally {
-        setScanning(false);
+        data = JSON.parse(cleanJson);
+      } catch {
+        const jsonMatch = cleanJson.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error("AI response contained no valid JSON");
+        data = JSON.parse(jsonMatch[0]);
       }
-    },
-    [apiKey, updateMetrics, setAlertMode],
-  );
 
-  const onScan = () => {
-    if (source === "webcam" && webcamRef.current) {
+      if (data.detected) {
+        const profile = resolveProfile(String(data.matchId ?? ""));
+        setEjecting(true);
+        setFlash(true);
+        setAlertMode(true);
+        window.setTimeout(() => {
+          if (hazardHandler.current) {
+            hazardHandler.current(data);
+          }
+          setScanResult({
+            type:
+              String(data.batteryName ?? "") ||
+              "Unknown Battery",
+            capacity: String(data.capacity ?? "—"),
+            matchId: profile.id,
+            confidence: Number(data.confidence ?? 0),
+            dangerLevel: String(data.dangerLevel ?? "Unknown"),
+            saved: profile.financialDamage,
+          });
+          setEjecting(false);
+        }, 1200);
+        window.setTimeout(() => {
+          setFlash(false);
+          setAlertMode(false);
+        }, 2800);
+      } else {
+        setScanResult(null);
+        setStreamClear(true);
+        window.setTimeout(() => setStreamClear(false), 3500);
+      }
+      setScanCount((c) => c + 1);
+    } catch (err) {
+      console.error("Gemini Scan Error:", err);
+      setError(err instanceof Error ? err.message : "Failed to analyze image");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  const scanCameraFeed = useCallback(() => {
+    if (webcamRef.current) {
       const frame = webcamRef.current.getScreenshot();
       if (frame) {
-        void runGemini(frame);
+        void analyzeImage(frame);
         return;
       }
     }
-    if (source === "upload" && imageSrc) {
-      void runGemini(imageSrc);
+    setError("Camera feed unavailable. Restart the device camera.");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const analyzeUploadedImage = useCallback(() => {
+    if (imageSrc) {
+      void analyzeImage(imageSrc);
       return;
     }
-    setError("Start the device camera or upload an image first.");
-  };
+    setError("Upload an image of e-waste first.");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [imageSrc]);
 
   const enableCamera = () => {
     setSource("webcam");
     setImageSrc(null);
-    setResult(null);
+    setScanResult(null);
+    setStreamClear(false);
+  };
+
+  const loadFile = (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      setError("Selected file is not an image.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setImageSrc(String(reader.result));
+      setSource("upload");
+      setScanResult(null);
+      setStreamClear(false);
+    };
+    reader.readAsDataURL(file);
   };
 
   const onFile = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = String(reader.result);
-      setImageSrc(dataUrl);
-      setSource("upload");
-      void runGemini(dataUrl);
-    };
-    reader.readAsDataURL(file);
+    if (file) loadFile(file);
     event.target.value = "";
+  };
+
+  const openPicker = () => {
+    setSource("upload");
+    fileRef.current?.click();
+  };
+
+  const resetUpload = () => {
+    setImageSrc(null);
+    setScanResult(null);
+    setStreamClear(false);
   };
 
   return (
@@ -263,9 +314,42 @@ export function VisionScanner({ updateMetrics }: VisionScannerProps) {
         ) : source === "upload" && imageSrc ? (
           <img
             src={imageSrc}
-            alt="Uploaded sample"
+            alt="Uploaded e-waste sample"
             className="absolute inset-0 h-full w-full object-cover"
           />
+        ) : source === "upload" ? (
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => fileRef.current?.click()}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") fileRef.current?.click();
+            }}
+            onDragOver={(event) => {
+              event.preventDefault();
+              setDragging(true);
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(event) => {
+              event.preventDefault();
+              setDragging(false);
+              const file = event.dataTransfer.files?.[0];
+              if (file) loadFile(file);
+            }}
+            className={`absolute inset-0 flex cursor-pointer flex-col items-center justify-center gap-3 border-2 border-dashed transition ${
+              dragging
+                ? "border-cyan-300 bg-cyan-400/10"
+                : "border-white/20 bg-black/60 hover:border-cyan-300/40"
+            }`}
+          >
+            <Upload className="h-10 w-10 text-slate-400" />
+            <p className="font-mono text-xs tracking-[0.2em] text-slate-300">
+              Click or drag image of e-waste / battery
+            </p>
+            <p className="font-mono text-[10px] tracking-[0.2em] text-slate-500">
+              JPG · PNG · WEBP
+            </p>
+          </div>
         ) : (
           <div className="thermal-sample absolute inset-0">
             <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 -rotate-12">
@@ -311,14 +395,11 @@ export function VisionScanner({ updateMetrics }: VisionScannerProps) {
             >
               <div className="rounded-2xl border border-red-500/70 bg-black/80 p-6 text-center shadow-[0_0_50px_rgba(239,68,68,0.4)]">
                 <AlertTriangle className="mx-auto h-10 w-10 text-red-500 drop-shadow-[0_0_16px_rgba(239,68,68,0.9)]" />
-                <p className="mt-3 font-mono text-xs font-bold tracking-[0.25em] text-red-400">
-                  SYSTEM ERROR
-                </p>
-                <p className="mt-1 font-mono text-[10px] tracking-wide text-red-300/90">
-                  API Key missing from environment variables.
+                <p className="mt-3 font-mono text-[11px] font-bold tracking-[0.2em] text-red-400">
+                  [SYSTEM ERROR: VITE_GEMINI_API_KEY missing in Netlify/Env]
                 </p>
                 <p className="mt-2 font-mono text-[9px] text-slate-500">
-                  Add VITE_GEMINI_API_KEY to the .env file and restart the server.
+                  Add the key to the .env file and restart the server.
                 </p>
               </div>
             </motion.div>
@@ -326,7 +407,7 @@ export function VisionScanner({ updateMetrics }: VisionScannerProps) {
         </AnimatePresence>
 
         <AnimatePresence>
-          {scanning && (
+          {isAnalyzing && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -372,7 +453,7 @@ export function VisionScanner({ updateMetrics }: VisionScannerProps) {
         </AnimatePresence>
 
         <AnimatePresence>
-          {result && (
+          {scanResult && (
             <motion.div
               initial={{ opacity: 0, scale: 0.7, y: 24 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -385,18 +466,32 @@ export function VisionScanner({ updateMetrics }: VisionScannerProps) {
                 BATTERY INTERCEPTED
               </p>
               <p className="mt-1.5 text-base font-black text-white">
-                {result.type}
+                {scanResult.type}
               </p>
               <p className="font-mono text-[10px] text-cyan-200">
-                {result.capacity} · {result.matchId.toUpperCase()}
+                {scanResult.capacity} · {scanResult.matchId.toUpperCase()}
               </p>
-              <div className="mt-2.5 flex items-end justify-between gap-3">
-                <p className="font-mono text-[9px] tracking-[0.2em] text-slate-400">
-                  CONF {Math.round(result.confidence)}%
-                </p>
-                <p className="font-mono text-xl font-black text-emerald-300 drop-shadow-[0_0_14px_rgba(16,185,129,0.8)]">
-                  {result.saved} SAVED
-                </p>
+              <p className="mt-1 font-mono text-[9px] tracking-[0.2em] text-slate-400">
+                DANGER {scanResult.dangerLevel.toUpperCase()} · CONF{" "}
+                {Math.round(scanResult.confidence)}%
+              </p>
+              <p className="mt-2 text-right font-mono text-xl font-black text-emerald-300 drop-shadow-[0_0_14px_rgba(16,185,129,0.8)]">
+                {scanResult.saved} SAVED
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {streamClear && (
+            <motion.div
+              initial={{ opacity: 0, y: -12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center"
+            >
+              <div className="glass-panel rounded-full border border-cyan-300/40 px-4 py-1.5 font-mono text-[10px] tracking-[0.25em] text-cyan-200">
+                STREAM CLEAR — NO HAZARDOUS BATTERIES IDENTIFIED IN FRAME
               </div>
             </motion.div>
           )}
@@ -439,6 +534,14 @@ export function VisionScanner({ updateMetrics }: VisionScannerProps) {
         </AnimatePresence>
       </div>
 
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        onChange={onFile}
+        className="hidden"
+      />
+
       <div className="flex flex-wrap items-center gap-2">
         <motion.button
           type="button"
@@ -459,7 +562,7 @@ export function VisionScanner({ updateMetrics }: VisionScannerProps) {
           type="button"
           whileHover={{ scale: 1.04 }}
           whileTap={{ scale: 0.96 }}
-          onClick={() => fileRef.current?.click()}
+          onClick={openPicker}
           className={`flex items-center gap-2 rounded-full border px-3 py-2 font-mono text-[10px] tracking-wider transition ${
             source === "upload"
               ? "border-emerald-300 bg-emerald-400/15 text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.4)]"
@@ -469,35 +572,59 @@ export function VisionScanner({ updateMetrics }: VisionScannerProps) {
           <Upload className="h-3.5 w-3.5" />
           UPLOAD IMAGE
         </motion.button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          onChange={onFile}
-          className="hidden"
-        />
+      </div>
 
+      {source === "webcam" && (
         <motion.button
           type="button"
-          whileHover={apiKey ? { scale: 1.04 } : undefined}
-          whileTap={apiKey ? { scale: 0.96 } : undefined}
-          onClick={onScan}
-          disabled={scanning || !apiKey}
-          className="glow-btn flex flex-1 items-center justify-center gap-2 rounded-full border border-cyan-300/60 bg-cyan-400/15 px-5 py-2 font-mono text-[11px] tracking-[0.2em] text-cyan-100 transition disabled:opacity-40"
+          whileHover={apiKey ? { scale: 1.03 } : undefined}
+          whileTap={apiKey ? { scale: 0.97 } : undefined}
+          onClick={scanCameraFeed}
+          disabled={isAnalyzing || !apiKey}
+          className="glow-btn flex w-full items-center justify-center gap-2 rounded-2xl border border-cyan-300/60 bg-cyan-400/15 px-6 py-4 font-mono text-sm font-black tracking-[0.25em] text-cyan-100 transition disabled:opacity-40"
         >
-          {scanning ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+          {isAnalyzing ? (
+            <Loader2 className="h-5 w-5 animate-spin" />
           ) : (
-            <ScanSearch className="h-4 w-4" />
+            <ScanSearch className="h-5 w-5" />
           )}
-          {scanning ? "ANALYZING..." : "SCAN LIVE VIDEO"}
+          {isAnalyzing ? "ANALYZING..." : "⚡ SCAN CAMERA FEED"}
         </motion.button>
-      </div>
+      )}
+
+      {source === "upload" && imageSrc && (
+        <div className="flex gap-2">
+          <motion.button
+            type="button"
+            whileHover={apiKey ? { scale: 1.03 } : undefined}
+            whileTap={apiKey ? { scale: 0.97 } : undefined}
+            onClick={analyzeUploadedImage}
+            disabled={isAnalyzing || !apiKey}
+            className="glow-btn flex flex-1 items-center justify-center gap-2 rounded-2xl border border-cyan-300/60 bg-cyan-400/15 px-6 py-4 font-mono text-sm font-black tracking-[0.25em] text-cyan-100 transition disabled:opacity-40"
+          >
+            {isAnalyzing ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              <ScanSearch className="h-5 w-5" />
+            )}
+            {isAnalyzing ? "ANALYZING..." : "⚡ ANALYZE UPLOADED IMAGE"}
+          </motion.button>
+          <motion.button
+            type="button"
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            onClick={resetUpload}
+            className="rounded-2xl border border-white/15 px-4 py-4 font-mono text-[10px] tracking-[0.15em] text-slate-300 transition hover:border-white/40 hover:text-white"
+          >
+            REMOVE / UPLOAD ANOTHER
+          </motion.button>
+        </div>
+      )}
 
       <div className="min-h-[18px] font-mono text-[10px] tracking-[0.15em]">
         {error ? (
           <span className="text-red-400">{error}</span>
-        ) : result ? (
+        ) : scanResult ? (
           <span className="flex items-center gap-1.5 text-emerald-300">
             <CheckCircle2 className="h-3.5 w-3.5" />
             AI INTERCEPTION COMPLETE — THREAT CLASSIFIED &amp; LOGGED

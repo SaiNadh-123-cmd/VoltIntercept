@@ -1,13 +1,14 @@
 import { motion } from "framer-motion";
 import { useMission } from "../context/MissionContext";
-import type { BatteryProfile } from "./simulator/batteries";
-import { VisionScanner } from "./VisionScanner";
+import { resolveProfile, VisionScanner, type AiScanResult } from "./VisionScanner";
 
 export function VisionPanel() {
   const { recordInterception } = useMission();
 
-  const updateMetrics = (profile: BatteryProfile, confidence: number) => {
-    recordInterception(profile, confidence);
+  const onHazardDetected = (data: AiScanResult) => {
+    if (!data.detected) return;
+    const profile = resolveProfile(String(data.matchId ?? ""));
+    recordInterception(profile, Number(data.confidence ?? 0));
   };
 
   return (
@@ -33,7 +34,7 @@ export function VisionPanel() {
         </div>
       </div>
 
-      <VisionScanner updateMetrics={updateMetrics} />
+      <VisionScanner onHazardDetected={onHazardDetected} />
     </motion.section>
   );
 }
