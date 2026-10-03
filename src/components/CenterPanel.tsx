@@ -1,9 +1,19 @@
-import { motion } from "framer-motion";
+import { motion, useAnimation } from "framer-motion";
 import { AlertOctagon, Hexagon } from "lucide-react";
 import { useMission } from "../context/MissionContext";
 
 export function CenterPanel() {
   const { eject } = useMission();
+  const controls = useAnimation();
+
+  const onEject = () => {
+    void controls.start({
+      x: [0, -9, 9, -7, 7, -4, 4, 0],
+      rotate: [0, -2, 2, -1.5, 1.5, 0],
+      transition: { duration: 0.5, ease: "easeInOut" },
+    });
+    eject();
+  };
 
   return (
     <motion.section
@@ -37,9 +47,10 @@ export function CenterPanel() {
 
       <motion.button
         type="button"
+        animate={controls}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.97 }}
-        onClick={eject}
+        onClick={onEject}
         className="mt-8 flex items-center justify-center gap-3 rounded-2xl border border-red-500/70 bg-red-600/20 px-6 py-8 text-center text-lg font-black tracking-[0.18em] text-red-100 shadow-[0_0_28px_rgba(239,68,68,0.45)] transition hover:shadow-[0_0_55px_rgba(239,68,68,0.8)]"
       >
         <AlertOctagon className="h-7 w-7" />

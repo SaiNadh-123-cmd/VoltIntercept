@@ -1,15 +1,26 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { Camera, Crosshair, Upload } from "lucide-react";
+import { Camera, CheckCircle2, Crosshair, Upload } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useMission } from "../context/MissionContext";
 
+type ScannerState = "idle" | "ejected" | "scanning";
+
 export function VisionPanel() {
-  const { visionMode, setVisionMode, mediaReady, setMediaReady, setAlertMode, alertMode } = useMission();
+  const {
+    visionMode,
+    setVisionMode,
+    mediaReady,
+    setMediaReady,
+    setAlertMode,
+    alertMode,
+    ejectFlash,
+  } = useMission();
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
   const [locked, setLocked] = useState(false);
   const [cross, setCross] = useState({ x: 50, y: 50 });
+  const [scannerState, setScannerState] = useState<ScannerState>("idle");
 
   useEffect(() => {
     setMediaReady(true);
@@ -38,6 +49,7 @@ export function VisionPanel() {
     setMediaReady(false);
     setLocked(false);
     setAlertMode(false);
+    setScannerState("idle");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
       streamRef.current = stream;
@@ -61,6 +73,7 @@ export function VisionPanel() {
     setMediaReady(true);
     setLocked(false);
     setAlertMode(false);
+    setScannerState("idle");
   };
 
   useEffect(() => {
@@ -71,6 +84,18 @@ export function VisionPanel() {
     }, 900);
     return () => window.clearTimeout(lock);
   }, [mediaReady, setAlertMode]);
+
+  useEffect(() => {
+    if (ejectFlash) {
+      setScannerState("ejected");
+      return;
+    }
+    if (scannerState === "ejected") {
+      setScannerState("scanning");
+      const timer = window.setTimeout(() => setScannerState("idle"), 1400);
+      return () => window.clearTimeout(timer);
+    }
+  }, [ejectFlash, scannerState]);
 
   return (
     <motion.section
@@ -141,16 +166,27 @@ export function VisionPanel() {
         )}
         {visionMode === "idle" && (
           <div className="thermal-sample absolute inset-0">
-            <div className="absolute inset-0 opacity-40 mix-blend-screen">
-              <div className="absolute left-[48%] top-[42%] h-24 w-12 -rotate-12 rounded-sm bg-gradient-to-b from-yellow-200 via-orange-500 to-red-700 blur-[1px]" />
+            <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 -rotate-12">
+              <div className="relative h-28 w-14 rounded-md border border-yellow-200/40 bg-gradient-to-b from-yellow-100/20 via-orange-400/25 to-red-600/30 shadow-[0_0_30px_rgba(245,158,11,0.35)]">
+                <div className="absolute -top-2 left-1/2 h-2 w-5 -translate-x-1/2 rounded-t-sm bg-slate-200/70" />
+                <div className="absolute inset-x-2 top-3 space-y-1.5">
+                  <div className="h-1 rounded-full bg-cyan-300/70" />
+                  <div className="h-1 rounded-full bg-cyan-300/50" />
+                  <div className="h-1 rounded-full bg-amber-300/60" />
+                  <div className="h-1 rounded-full bg-red-400/70" />
+                </div>
+                <div className="absolute inset-x-0 bottom-1.5 text-center font-mono text-[7px] tracking-[0.2em] text-red-200/90">
+                  Li-ION // 18650
+                </div>
+              </div>
             </div>
             <p className="absolute inset-x-0 bottom-4 text-center font-mono text-[10px] tracking-[0.3em] text-cyan-200/70">
-              {locked ? "OPTICAL LOCK ENGAGED" : "AWAITING OPTICAL INPUT"}
+              {locked ? "OPTICAL LOCK ENGAGED" : "DEFAULT SAMPLE // SCANNING"}
             </p>
           </div>
         )}
 
-        <div className="scan-laser" />
+        <div key={scannerState} className="scan-laser" />
         <CornerBrackets />
         <div
           className="pointer-events-none absolute h-8 w-8 -translate-x-1/2 -translate-y-1/2"
@@ -158,6 +194,39 @@ export function VisionPanel() {
         >
           <Crosshair className="h-8 w-8 text-cyan-200 drop-shadow-[0_0_8px_#22d3ee]" />
         </div>
+
+        <AnimatePresence>
+          {scannerState === "ejected" && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.85 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 1.1 }}
+              className="pointer-events-none absolute inset-0 flex items-center justify-center bg-emerald-500/10"
+            >
+              <div className="glass-panel flex items-center gap-3 rounded-2xl border border-emerald-400/70 px-6 py-4 shadow-[0_0_40px_rgba(16,185,129,0.6)]">
+                <CheckCircle2 className="h-6 w-6 text-emerald-300" />
+                <div>
+                  <p className="font-mono text-sm font-bold tracking-[0.25em] text-emerald-200">
+                    HAZARD EJECTED
+                  </p>
+                  <p className="font-mono text-[9px] tracking-[0.2em] text-emerald-200/70">
+                    DIVERTED TO FIRE-SAFE BIN
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          )}
+          {scannerState === "scanning" && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="pointer-events-none absolute inset-x-0 top-3 text-center font-mono text-[10px] tracking-[0.3em] text-cyan-200/80"
+            >
+              SCANNING NEXT ITEM...
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <AnimatePresence>
           {locked && (

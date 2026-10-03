@@ -5,8 +5,8 @@ export type VisionMode = "idle" | "camera" | "upload";
 
 export type Telemetry = {
   fires: number;
-  toxins: number;
-  savings: number;
+  damage: number;
+  waste: number;
 };
 
 type MissionContextValue = {
@@ -22,6 +22,7 @@ type MissionContextValue = {
   setMediaReady: (value: boolean) => void;
   telemetry: Telemetry;
   eject: () => void;
+  ejectFlash: boolean;
   explorerOpen: boolean;
   setExplorerOpen: (value: boolean) => void;
   simulatorOpen: boolean;
@@ -39,10 +40,11 @@ export function MissionProvider({ children }: { children: ReactNode }) {
   const [visionMode, setVisionMode] = useState<VisionMode>("idle");
   const [mediaReady, setMediaReady] = useState(false);
   const [telemetry, setTelemetry] = useState<Telemetry>({
-    fires: 14,
-    toxins: 4.2,
-    savings: 750000,
+    fires: 0,
+    damage: 0,
+    waste: 0,
   });
+  const [ejectFlash, setEjectFlash] = useState(false);
   const [explorerOpen, setExplorerOpen] = useState(false);
   const [simulatorOpen, setSimulatorOpen] = useState(false);
   const [cursorPointer, setCursorPointer] = useState(false);
@@ -69,17 +71,31 @@ export function MissionProvider({ children }: { children: ReactNode }) {
       setSimulatorOpen,
       cursorPointer,
       setCursorPointer,
+      ejectFlash,
       eject: () => {
         setTelemetry((prev) => ({
           fires: prev.fires + 1,
-          toxins: Number((prev.toxins + 0.3).toFixed(1)),
-          savings: prev.savings + 25000,
+          damage: prev.damage + 250000,
+          waste: Number((prev.waste + 0.4).toFixed(1)),
         }));
         setShake(true);
         window.setTimeout(() => setShake(false), 560);
+        setEjectFlash(true);
+        window.setTimeout(() => setEjectFlash(false), 1800);
       },
     }),
-    [phase, alertMode, shake, visionMode, mediaReady, telemetry, explorerOpen, simulatorOpen, cursorPointer],
+    [
+      phase,
+      alertMode,
+      shake,
+      visionMode,
+      mediaReady,
+      telemetry,
+      explorerOpen,
+      simulatorOpen,
+      cursorPointer,
+      ejectFlash,
+    ],
   );
 
   return <MissionContext.Provider value={value}>{children}</MissionContext.Provider>;

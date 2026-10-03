@@ -1,6 +1,6 @@
 import { useMotionValueEvent, useSpring } from "framer-motion";
 import { motion } from "framer-motion";
-import { Flame, IndianRupee, ShieldCheck } from "lucide-react";
+import { Flame, IndianRupee, Recycle } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { useMission } from "../context/MissionContext";
 
@@ -68,14 +68,14 @@ export function TelemetryPanel() {
         <p className="font-mono text-[10px] tracking-[0.4em] text-emerald-300/80">NODE 03</p>
         <h2 className="mt-1 text-lg font-semibold tracking-widest text-white">LIVE IMPACT TELEMETRY</h2>
         <div className="mt-6 grid gap-4">
-          <Metric icon={<Flame className="h-4 w-4" />} label="CATASTROPHIC FIRES AVERTED">
+          <Metric icon={<Flame className="h-4 w-4" />} label="FIRES AVERTED">
             <CountValue value={telemetry.fires} />
           </Metric>
-          <Metric icon={<ShieldCheck className="h-4 w-4" />} label="TOXINS DIVERTED">
-            <CountValue value={telemetry.toxins} decimals={1} suffix=" kg" />
+          <Metric icon={<IndianRupee className="h-4 w-4" />} label="DAMAGE PREVENTED">
+            <CountValue value={telemetry.damage} prefix="₹" locale />
           </Metric>
-          <Metric icon={<IndianRupee className="h-4 w-4" />} label="EQUIPMENT DAMAGE SAVED">
-            <CountValue value={telemetry.savings} prefix="₹" locale />
+          <Metric icon={<Recycle className="h-4 w-4" />} label="WASTE DIVERTED">
+            <CountValue value={telemetry.waste} decimals={1} suffix=" kg" />
           </Metric>
         </div>
       </div>

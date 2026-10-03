@@ -2,7 +2,6 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertTriangle,
   ChevronLeft,
-  Database,
   Flame,
   Gauge,
   ShieldCheck,
@@ -93,6 +92,31 @@ export function ImpactSimulator() {
               RETURN TO MISSION CONTROL
             </motion.button>
 
+            <div className="no-scrollbar absolute left-4 right-4 top-[4.5rem] z-20">
+              <div className="no-scrollbar flex gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-slate-950/55 p-2 backdrop-blur-xl">
+                {BATTERIES.map((b) => {
+                  const selected = b.id === battery.id;
+                  return (
+                    <motion.button
+                      key={b.id}
+                      type="button"
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => setSelectedId(b.id)}
+                      className={`shrink-0 rounded-full border px-4 py-2 font-mono text-[10px] tracking-wider transition ${
+                        selected
+                          ? "border-cyan-400 bg-cyan-500/20 text-cyan-100 shadow-[0_0_22px_rgba(34,211,238,0.55)]"
+                          : "border-white/15 bg-white/5 text-slate-300 hover:border-cyan-300/40 hover:text-cyan-100"
+                      }`}
+                    >
+                      <span className="font-semibold">{b.name}</span>
+                      <span className="ml-2 opacity-70">{b.capacity}</span>
+                    </motion.button>
+                  );
+                })}
+              </div>
+            </div>
+
             <AnimatePresence>
               {phase !== "idle" && (
                 <motion.div
@@ -137,57 +161,7 @@ export function ImpactSimulator() {
                 </p>
               </div>
 
-              <div className="relative mt-4 flex items-center justify-between">
-                <p className="flex items-center gap-2 font-mono text-[10px] tracking-[0.35em] text-slate-300">
-                  <Database className="h-3.5 w-3.5 text-red-300" />
-                  BATTERY DATABASE
-                </p>
-                <span className="font-mono text-[10px] tracking-widest text-slate-500">
-                  {BATTERIES.length} PROFILES
-                </span>
-              </div>
-
-              <div className="sim-scroll relative mt-2 flex-1 min-h-0 overflow-y-auto pr-1">
-                <div className="space-y-2 pb-2">
-                  {BATTERIES.map((b) => {
-                    const selected = b.id === battery.id;
-                    return (
-                      <motion.button
-                        key={b.id}
-                        type="button"
-                        whileHover={{ scale: 1.02, x: 3 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => setSelectedId(b.id)}
-                        className={`flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition ${
-                          selected
-                            ? "border-red-400/70 bg-red-500/10 shadow-[0_0_22px_rgba(239,68,68,0.25)]"
-                            : "border-white/10 bg-white/[0.03] hover:border-red-400/40 hover:bg-red-500/5"
-                        }`}
-                      >
-                        <span
-                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border font-mono text-xs font-bold ${
-                            selected
-                              ? "border-red-400/60 bg-red-500/20 text-red-200"
-                              : "border-white/10 bg-black/40 text-slate-400"
-                          }`}
-                        >
-                          {b.scale}
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block truncate text-xs font-semibold tracking-wide text-slate-100">
-                            {b.name}
-                          </span>
-                          <span className="mt-0.5 block font-mono text-[10px] text-slate-400">
-                            {b.capacity}
-                          </span>
-                        </span>
-                      </motion.button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="relative mt-3 border-t border-white/10 pt-3">
+              <div className="sim-scroll relative mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={battery.id}
@@ -198,7 +172,7 @@ export function ImpactSimulator() {
                   >
                     <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
                       <p className="font-mono text-[9px] tracking-[0.35em] text-red-300/80">
-                        IMPACT DATA
+                        IMPACT REPORT
                       </p>
                       <h3 className="mt-1.5 text-base font-bold tracking-wide text-white">
                         {battery.name}
@@ -256,7 +230,7 @@ export function ImpactSimulator() {
                     <div className="mt-3 rounded-2xl border border-emerald-400/20 bg-emerald-500/5 p-4">
                       <p className="flex items-center gap-2 font-mono text-[9px] tracking-[0.35em] text-emerald-300/90">
                         <ShieldCheck className="h-3.5 w-3.5" />
-                        HOW THERMASORT AI PREVENTS THIS
+                        PREVENTION PROTOCOL
                       </p>
                       <p className="mt-2 text-xs leading-relaxed text-slate-300">
                         {battery.prevention}
@@ -275,8 +249,10 @@ export function ImpactSimulator() {
                     </div>
                   </motion.div>
                 </AnimatePresence>
+              </div>
 
-                <div className="mt-3 flex items-center justify-between font-mono text-[10px] tracking-[0.25em]">
+              <div className="relative mt-3 border-t border-white/10 pt-3">
+                <div className="flex items-center justify-between font-mono text-[10px] tracking-[0.25em]">
                   <span className="text-slate-400">CRUSH STATUS</span>
                   <span
                     className={
