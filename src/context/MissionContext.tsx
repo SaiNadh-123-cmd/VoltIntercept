@@ -105,7 +105,7 @@ export function MissionProvider({ children }: { children: ReactNode }) {
         setTelemetry((prev) => ({
           fires: prev.fires + 1,
           damage: prev.damage + profile.financialDamageMah,
-          waste: Number((prev.waste + 0.4).toFixed(1)),
+          waste: Number((prev.waste + 0.3).toFixed(1)),
         }));
       },
     }),

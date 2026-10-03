@@ -1,7 +1,15 @@
 import { motion } from "framer-motion";
+import { useMission } from "../context/MissionContext";
+import type { BatteryProfile } from "./simulator/batteries";
 import { VisionScanner } from "./VisionScanner";
 
 export function VisionPanel() {
+  const { recordInterception } = useMission();
+
+  const updateMetrics = (profile: BatteryProfile, confidence: number) => {
+    recordInterception(profile, confidence);
+  };
+
   return (
     <motion.section
       layout
@@ -25,7 +33,7 @@ export function VisionPanel() {
         </div>
       </div>
 
-      <VisionScanner />
+      <VisionScanner updateMetrics={updateMetrics} />
     </motion.section>
   );
 }

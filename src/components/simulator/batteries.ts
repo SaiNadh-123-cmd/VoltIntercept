@@ -26,7 +26,7 @@ export type BatteryProfile = {
 
 export const BATTERIES: BatteryProfile[] = [
   {
-    id: "cr2032",
+    id: "button-cell",
     name: "Button Cell (CR2032 Li-ion)",
     capacity: "220 mAh",
     capacityMah: 220,
@@ -70,7 +70,7 @@ export const BATTERIES: BatteryProfile[] = [
       "The cylindrical steel profile is matched against the hazard library in real-time. Any IR spike above 60°C from a punctured cell triggers instant pneumatic ejection off the conveyor.",
   },
   {
-    id: "smartphone",
+    id: "smartphone-lipo",
     name: "Smartphone Battery",
     capacity: "4,000 mAh",
     capacityMah: 4000,
@@ -85,7 +85,7 @@ export const BATTERIES: BatteryProfile[] = [
       "The flat slab silhouette with camera cutout is isolated on the RGB feed, while thermal runaway's rapid heat bloom is detected up to 2 seconds before crusher impact.",
   },
   {
-    id: "drone-lipo",
+    id: "drone-high-c",
     name: "Drone High-C LiPo",
     capacity: "5,000 mAh",
     capacityMah: 5000,
@@ -115,7 +115,7 @@ export const BATTERIES: BatteryProfile[] = [
       "Swelling distorts the pouch silhouette in the RGB frame long before rupture. Dual-sensor fusion classifies the distortion and ejects the item to the fire-safe bin.",
   },
   {
-    id: "power-tool",
+    id: "powertool-pack",
     name: "Power Tool Pack (20V)",
     capacity: "9,000 mAh",
     capacityMah: 9000,
