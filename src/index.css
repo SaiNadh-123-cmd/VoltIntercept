@@ -1,0 +1,228 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Orbitron", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Share Tech Mono", ui-monospace, monospace;
+  --color-neon: #22d3ee;
+  --color-ember: #10b981;
+  --color-hazard: #ef4444;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+  background: #000;
+  color: #e2e8f0;
+  font-family: var(--font-display);
+  overflow: hidden;
+  cursor: none;
+}
+
+button,
+a,
+label,
+input,
+textarea,
+select {
+  cursor: none;
+}
+
+::selection {
+  background: rgba(34, 211, 238, 0.35);
+  color: #fff;
+}
+
+.glass-panel {
+  background: rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.scan-laser {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(239, 68, 68, 0.15),
+    #ef4444,
+    rgba(239, 68, 68, 0.15),
+    transparent
+  );
+  box-shadow: 0 0 18px #ef4444, 0 0 40px rgba(239, 68, 68, 0.6);
+  animation: laser-sweep 2.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes laser-sweep {
+  0% {
+    top: 8%;
+    opacity: 0.2;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    top: 88%;
+    opacity: 0.2;
+  }
+}
+
+@keyframes pulse-bracket {
+  0%,
+  100% {
+    opacity: 0.55;
+    filter: drop-shadow(0 0 4px #22d3ee);
+  }
+  50% {
+    opacity: 1;
+    filter: drop-shadow(0 0 12px #22d3ee);
+  }
+}
+
+@keyframes glow-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 16px rgba(34, 211, 238, 0.35),
+      0 0 40px rgba(34, 211, 238, 0.15);
+  }
+  50% {
+    box-shadow:
+      0 0 28px rgba(34, 211, 238, 0.7),
+      0 0 64px rgba(34, 211, 238, 0.35);
+  }
+}
+
+.glow-btn {
+  animation: glow-pulse 2.8s ease-in-out infinite;
+}
+
+@keyframes impact-glow-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 16px rgba(239, 68, 68, 0.35),
+      0 0 40px rgba(239, 68, 68, 0.15);
+  }
+  50% {
+    box-shadow:
+      0 0 28px rgba(239, 68, 68, 0.7),
+      0 0 64px rgba(239, 68, 68, 0.35);
+  }
+}
+
+.impact-glow-btn {
+  animation: impact-glow-pulse 2.2s ease-in-out infinite;
+}
+
+@keyframes crush-glow-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 24px rgba(239, 68, 68, 0.5),
+      0 0 55px rgba(239, 68, 68, 0.25);
+  }
+  50% {
+    box-shadow:
+      0 0 42px rgba(239, 68, 68, 0.85),
+      0 0 90px rgba(239, 68, 68, 0.45);
+  }
+}
+
+.crush-btn {
+  animation: crush-glow-pulse 1.6s ease-in-out infinite;
+}
+
+.sim-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(239, 68, 68, 0.4) transparent;
+}
+
+.sim-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+
+.sim-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sim-scroll::-webkit-scrollbar-thumb {
+  background: rgba(239, 68, 68, 0.35);
+  border-radius: 999px;
+}
+
+@keyframes vignette-flash {
+  0%,
+  100% {
+    opacity: 0.22;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@keyframes hud-shake {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  15% {
+    transform: translate3d(-8px, 2px, 0);
+  }
+  30% {
+    transform: translate3d(7px, -3px, 0);
+  }
+  45% {
+    transform: translate3d(-6px, 1px, 0);
+  }
+  60% {
+    transform: translate3d(5px, 3px, 0);
+  }
+  75% {
+    transform: translate3d(-3px, -1px, 0);
+  }
+}
+
+.shake-once {
+  animation: hud-shake 0.55s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+.vignette-alert {
+  animation: vignette-flash 0.85s ease-in-out 3;
+}
+
+.corner-brackets {
+  pointer-events: none;
+  animation: pulse-bracket 2s ease-in-out infinite;
+}
+
+.grid-noise {
+  background-image:
+    linear-gradient(rgba(34, 211, 238, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34, 211, 238, 0.04) 1px, transparent 1px);
+  background-size: 42px 42px;
+}
+
+.thermal-sample {
+  background:
+    radial-gradient(circle at 62% 48%, rgba(255, 80, 40, 0.95) 0 8%, transparent 22%),
+    radial-gradient(circle at 58% 52%, rgba(255, 210, 40, 0.55) 0 14%, transparent 32%),
+    linear-gradient(160deg, #0b1220 0%, #1a1024 40%, #071018 100%);
+}
+
+input[type="file"] {
+  display: none;
+}
