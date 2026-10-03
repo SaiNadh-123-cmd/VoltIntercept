@@ -21,21 +21,36 @@ export function ImpactSimulator() {
   const [phase, setPhase] = useState<SimulatorPhase>("idle");
   const [trigger, setTrigger] = useState(0);
   const [explodedScale, setExplodedScale] = useState(1);
+  const [showDamageReport, setShowDamageReport] = useState(false);
 
   const battery = BATTERIES.find((b) => b.id === selectedId) ?? BATTERIES[0];
 
   useEffect(() => {
-    if (simulatorOpen) setPhase("idle");
+    if (simulatorOpen) {
+      setPhase("idle");
+      setShowDamageReport(false);
+    }
   }, [simulatorOpen]);
+
+  const acknowledgeDamageReport = useCallback(() => {
+    setShowDamageReport(false);
+    setPhase("idle");
+  }, []);
 
   useEffect(() => {
     if (!simulatorOpen) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setSimulatorOpen(false);
+      if (event.key === "Escape") {
+        if (showDamageReport) {
+          acknowledgeDamageReport();
+        } else {
+          setSimulatorOpen(false);
+        }
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [simulatorOpen, setSimulatorOpen]);
+  }, [simulatorOpen, showDamageReport, setSimulatorOpen, acknowledgeDamageReport]);
 
   const simulate = useCallback(() => {
     if (phase !== "idle") return;
@@ -45,6 +60,9 @@ export function ImpactSimulator() {
       setPhase("exploded");
       setTrigger((t) => t + 1);
     }, 750);
+    window.setTimeout(() => {
+      setShowDamageReport(true);
+    }, 1500);
   }, [phase, battery.scale]);
 
   const handleExplosionComplete = useCallback(() => {
@@ -197,7 +215,7 @@ export function ImpactSimulator() {
                       </div>
                       <p className="mt-3 text-[13px] leading-relaxed text-slate-300">
                         <span className="font-bold text-red-300">SHREDDER IMPACT: </span>
-                        {battery.impact}
+                        {battery.shredderImpact}
                       </p>
                       <div className="mt-3 flex gap-1">
                         {Array.from({ length: 10 }, (_, i) => (
@@ -279,6 +297,52 @@ export function ImpactSimulator() {
           </aside>
         </motion.div>
       )}
+
+      <AnimatePresence>
+        {simulatorOpen && showDamageReport && (
+          <motion.div
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.85 }}
+              transition={{ duration: 0.35, ease }}
+              className="max-w-lg w-full bg-black/90 border-2 border-red-500 shadow-[0_0_50px_rgba(239,68,68,0.4)] rounded-2xl p-8 text-center"
+            >
+              <Flame className="mx-auto h-14 w-14 text-red-500 drop-shadow-[0_0_18px_rgba(239,68,68,0.9)]" />
+              <h2 className="mt-4 font-mono text-xl font-bold uppercase tracking-[0.2em] text-red-500">
+                Catastrophic Failure Simulated
+              </h2>
+              <p className="mt-1 font-mono text-[10px] tracking-[0.35em] text-slate-400">
+                FINANCIAL DAMAGE REPORT
+              </p>
+              <p className="my-4 text-5xl font-bold text-red-500 shadow-red-500 drop-shadow-lg">
+                {battery.financialDamage}
+              </p>
+              <p className="font-mono text-[10px] tracking-[0.3em] text-slate-400">
+                ESTIMATED FACILITY DAMAGE &amp; DOWNTIME LOSS
+              </p>
+              <p className="mt-4 text-sm leading-relaxed text-slate-400">
+                {battery.shredderImpact}
+              </p>
+              <motion.button
+                type="button"
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={acknowledgeDamageReport}
+                className="mt-6 w-full bg-red-500/20 border border-red-500 text-red-400 hover:bg-red-500 hover:text-white transition-all py-3 rounded-xl font-mono uppercase tracking-widest"
+              >
+                Acknowledge &amp; Reset Simulation
+              </motion.button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </AnimatePresence>
   );
 }
