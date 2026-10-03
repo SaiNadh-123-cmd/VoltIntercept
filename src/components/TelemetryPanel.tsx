@@ -1,5 +1,4 @@
-import { useMotionValueEvent, useSpring } from "framer-motion";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion, useMotionValueEvent, useSpring } from "framer-motion";
 import { Flame, IndianRupee, Recycle } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { useMission } from "../context/MissionContext";
@@ -54,7 +53,7 @@ function Metric({ icon, label, children }: { icon: ReactNode; label: string; chi
 }
 
 export function TelemetryPanel() {
-  const { telemetry } = useMission();
+  const { telemetry, lastInterception } = useMission();
 
   return (
     <motion.section
@@ -78,6 +77,41 @@ export function TelemetryPanel() {
             <CountValue value={telemetry.waste} decimals={1} suffix=" kg" />
           </Metric>
         </div>
+
+        <AnimatePresence>
+          {lastInterception && (
+            <motion.div
+              initial={{ opacity: 0, y: 14, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+              className="mt-4 rounded-2xl border border-cyan-400/30 bg-cyan-400/5 p-4 shadow-[0_0_24px_rgba(34,211,238,0.25)]"
+            >
+              <p className="flex items-center gap-2 font-mono text-[9px] tracking-[0.3em] text-cyan-300/80">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-400" />
+                LAST AI INTERCEPTION
+              </p>
+              <div className="mt-2 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-bold text-white">
+                    {lastInterception.name}
+                  </p>
+                  <p className="mt-0.5 font-mono text-[10px] text-slate-400">
+                    {lastInterception.capacity} · CONF{" "}
+                    {Math.round(lastInterception.confidence)}%
+                  </p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="font-mono text-lg font-bold text-emerald-300">
+                    {lastInterception.financialDamage}
+                  </p>
+                  <p className="font-mono text-[8px] tracking-[0.2em] text-emerald-200/60">
+                    DAMAGE PREVENTED
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </motion.section>
   );

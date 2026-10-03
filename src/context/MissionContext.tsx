@@ -1,4 +1,5 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import type { BatteryProfile } from "../components/simulator/batteries";
 
 export type Phase = "boot" | "waiting" | "hud";
 export type VisionMode = "idle" | "camera" | "upload";
@@ -7,6 +8,13 @@ export type Telemetry = {
   fires: number;
   damage: number;
   waste: number;
+};
+
+export type Interception = {
+  name: string;
+  capacity: string;
+  financialDamage: string;
+  confidence: number;
 };
 
 type MissionContextValue = {
@@ -23,6 +31,8 @@ type MissionContextValue = {
   telemetry: Telemetry;
   eject: () => void;
   ejectFlash: boolean;
+  lastInterception: Interception | null;
+  recordInterception: (profile: BatteryProfile, confidence: number) => void;
   explorerOpen: boolean;
   setExplorerOpen: (value: boolean) => void;
   simulatorOpen: boolean;
@@ -45,6 +55,7 @@ export function MissionProvider({ children }: { children: ReactNode }) {
     waste: 0,
   });
   const [ejectFlash, setEjectFlash] = useState(false);
+  const [lastInterception, setLastInterception] = useState<Interception | null>(null);
   const [explorerOpen, setExplorerOpen] = useState(false);
   const [simulatorOpen, setSimulatorOpen] = useState(false);
   const [cursorPointer, setCursorPointer] = useState(false);
@@ -83,6 +94,20 @@ export function MissionProvider({ children }: { children: ReactNode }) {
         setEjectFlash(true);
         window.setTimeout(() => setEjectFlash(false), 1800);
       },
+      lastInterception,
+      recordInterception: (profile, confidence) => {
+        setLastInterception({
+          name: profile.name,
+          capacity: profile.capacity,
+          financialDamage: profile.financialDamage,
+          confidence,
+        });
+        setTelemetry((prev) => ({
+          fires: prev.fires + 1,
+          damage: prev.damage + profile.financialDamageMah,
+          waste: Number((prev.waste + 0.4).toFixed(1)),
+        }));
+      },
     }),
     [
       phase,
@@ -95,6 +120,7 @@ export function MissionProvider({ children }: { children: ReactNode }) {
       simulatorOpen,
       cursorPointer,
       ejectFlash,
+      lastInterception,
     ],
   );
 
