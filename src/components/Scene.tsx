@@ -1,4 +1,4 @@
-import { Float, PointMaterial, Points } from "@react-three/drei";
+import { Billboard, Float, PointMaterial, Points, Text } from "@react-three/drei";
 import { Canvas, useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import * as THREE from "three";
@@ -139,6 +139,19 @@ function Processor({ isEjecting }: { isEjecting: boolean }) {
           </mesh>
         ))}
       </Float>
+      <Billboard position={[0, 1.0, 0]}>
+        <Text
+          fontSize={0.6}
+          color="#3b82f6"
+          anchorX="center"
+          anchorY="middle"
+          font="https://fonts.gstatic.com/s/roboto/v20/KFOmCnqEu92Fr1Me5WZLCzYlKw.ttf"
+          outlineWidth={0.02}
+          outlineColor="#000000"
+        >
+          EDGE COMPUTE MODULE
+        </Text>
+      </Billboard>
     </group>
   );
 }
@@ -192,6 +205,19 @@ function ThermalSensor({ isEjecting }: { isEjecting: boolean }) {
           <meshStandardMaterial {...darkMetal} />
         </mesh>
       </Float>
+      <Billboard position={[0, -1.2, 0]}>
+        <Text
+          fontSize={0.6}
+          color="#ef4444"
+          anchorX="center"
+          anchorY="middle"
+          font="https://fonts.gstatic.com/s/roboto/v20/KFOmCnqEu92Fr1Me5WZLCzYlKw.ttf"
+          outlineWidth={0.02}
+          outlineColor="#000000"
+        >
+          THERMAL VISION SENSOR
+        </Text>
+      </Billboard>
     </group>
   );
 }
@@ -224,11 +250,11 @@ function Ejector({ isEjecting }: { isEjecting: boolean }) {
       if (e < 0.4) {
         const k = easeOutCubic(clamp01(e / 0.4));
         target.lerpVectors(ref.current.position, EJ_STRIKE, k);
-        scaleTarget = 1.5 * (1 + 2 * k);
+        scaleTarget = THREE.MathUtils.lerp(1.5, 2, k);
       } else {
         const k = easeInQuad(clamp01((e - 0.4) / 1.0));
         target.set(EJ_STRIKE.x + k * 8.5, EJ_STRIKE.y, EJ_STRIKE.z);
-        scaleTarget = 4.5;
+        scaleTarget = 2;
       }
       ref.current.rotation.y = THREE.MathUtils.lerp(
         ref.current.rotation.y,
@@ -288,6 +314,19 @@ function Ejector({ isEjecting }: { isEjecting: boolean }) {
           />
         </mesh>
       </Float>
+      <Billboard position={[0, 0.85, 0]}>
+        <Text
+          fontSize={0.6}
+          color="#eab308"
+          anchorX="center"
+          anchorY="middle"
+          font="https://fonts.gstatic.com/s/roboto/v20/KFOmCnqEu92Fr1Me5WZLCzYlKw.ttf"
+          outlineWidth={0.02}
+          outlineColor="#000000"
+        >
+          PNEUMATIC EJECTOR
+        </Text>
+      </Billboard>
     </group>
   );
 }
