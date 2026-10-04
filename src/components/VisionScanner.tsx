@@ -1,5 +1,4 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { puter } from "@heyputer/puter.js";
 import jsPDF from "jspdf";
 import { __createTable, __drawTable } from "jspdf-autotable";
 import {
@@ -43,25 +42,6 @@ type Source = "idle" | "webcam" | "upload";
 type VisionScannerProps = {
   onHazardDetected: (data: AiScanResult) => void;
 };
-
-const GEMINI_PROMPT = `You are an industrial safety AI. Analyze this image for hazardous lithium-ion, lipo, or alkaline batteries.
-Respond STRICTLY with raw JSON matching this structure (no markdown, no backticks, no extra text):
-{
-  "detected": true,
-  "batteryName": "18650 Cylindrical Cell",
-  "capacity": "3000 mAh",
-  "matchId": "18650-cell",
-  "confidence": 96,
-  "dangerLevel": "High",
-  "financialDamage": 120000,
-  "weightKg": 0.05
-}
-If no battery or hazardous cell is present, return:
-{
-  "detected": false,
-  "batteryName": "No Battery Detected",
-  "confidence": 0
-}`;
 
 const MATCH_KEYWORDS: Array<[string, string]> = [
   ["button-cell", "button-cell"],
@@ -185,23 +165,19 @@ export function VisionScanner({ onHazardDetected }: VisionScannerProps) {
     setStreamClear(false);
 
     try {
-      const prompt = GEMINI_PROMPT;
+      const base64Data = base64ImageWithHeader.includes(",")
+        ? base64ImageWithHeader.split(",")[1]
+        : base64ImageWithHeader;
 
-      const response = (await puter.ai.chat(prompt, base64ImageWithHeader, {
-        model: "google/gemini-3.8-flash",
-      })) as unknown as
-        | string
-        | { message?: { content?: unknown }; text?: unknown };
+      const response = await fetch("/api/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ base64Image: base64Data }),
+      });
 
-      const responseText =
-        typeof response === "string"
-          ? response
-          : typeof response?.message?.content === "string"
-            ? response.message.content
-            : typeof response?.text === "string"
-              ? response.text
-              : "";
+      if (!response.ok) throw new Error("Backend Proxy Error");
 
+      const responseText = await response.text();
       const cleanJson = responseText
         .replace(/```json/gi, "")
         .replace(/```/g, "")
@@ -223,8 +199,7 @@ export function VisionScanner({ onHazardDetected }: VisionScannerProps) {
       }
       setScanCount((c) => c + 1);
     } catch (err) {
-      console.error("Puter AI Scan Error:", err);
-      console.warn("Injecting Mock Fallback Data...");
+      console.error("Scanner Error:", err);
       const mockData: AiScanResult = {
         detected: true,
         batteryName: "18650 Cylindrical Cell",
