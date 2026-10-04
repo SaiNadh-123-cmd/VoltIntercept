@@ -285,7 +285,7 @@ export function VisionScanner({ onHazardDetected }: VisionScannerProps) {
       const compressedImage = await compressImage(rawBase64Image);
       const base64Data = compressedImage.split(",")[1];
 
-      const response = await fetch("/api/scan", {
+      const response = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ base64Image: base64Data }),
@@ -314,9 +314,6 @@ export function VisionScanner({ onHazardDetected }: VisionScannerProps) {
       setScanCount((c) => c + 1);
     } catch (err) {
       console.error("Scanner Error:", err);
-      alert(
-        `Backend Error: ${err instanceof Error ? err.message : String(err)}`,
-      );
       const mockData: AiScanResult = {
         detected: true,
         batteryCount: 1,
