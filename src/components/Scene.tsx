@@ -54,9 +54,9 @@ function ParticleField() {
   );
 }
 
+const getCycle = (t: number) => (Math.sin(t * 0.8) + 1) / 2;
 const easeOutCubic = (x: number) => 1 - Math.pow(1 - x, 3);
-const easeInOut = (x: number) =>
-  x < 0.5 ? 2 * x * x : 1 - Math.pow(-2 * x + 2, 2) / 2;
+const easeInQuad = (x: number) => x * x;
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
 
 const gold = { color: "#d4af37", metalness: 1, roughness: 0.3 };
@@ -73,9 +73,30 @@ const CHIP_GRID: Array<[number, number]> = [
 
 const GPIO_PINS = [-0.3, -0.18, -0.06, 0.06, 0.18, 0.3];
 
+const PROC_EXPLODED = new THREE.Vector3(-15, 10, -10);
+const PROC_ASSEMBLED = new THREE.Vector3(0, -1, 0);
+const SENS_EXPLODED = new THREE.Vector3(15, 10, -10);
+const SENS_ASSEMBLED = new THREE.Vector3(0, 1.5, 0);
+const EJ_EXPLODED = new THREE.Vector3(-15, -10, -10);
+const EJ_ASSEMBLED = new THREE.Vector3(2, 0, 0);
+const EJ_STRIKE = new THREE.Vector3(-2, 0, -0.5);
+const BATTERY_CENTER = new THREE.Vector3(0, 0.2, 0.8);
+
 function Processor() {
+  const ref = useRef<THREE.Group>(null);
+
+  useFrame((state) => {
+    if (!ref.current) return;
+    const cycle = getCycle(state.clock.elapsedTime);
+    ref.current.position.set(
+      THREE.MathUtils.lerp(PROC_EXPLODED.x, PROC_ASSEMBLED.x, cycle),
+      THREE.MathUtils.lerp(PROC_EXPLODED.y, PROC_ASSEMBLED.y, cycle),
+      THREE.MathUtils.lerp(PROC_EXPLODED.z, PROC_ASSEMBLED.z, cycle),
+    );
+  });
+
   return (
-    <group position={[-3.4, 0.5, -1.5]} rotation={[0, 0.5, 0]}>
+    <group ref={ref} position={[-15, 10, -10]}>
       <Float speed={2} rotationIntensity={0.5} floatIntensity={1.1}>
         <mesh castShadow>
           <boxGeometry args={[1.5, 0.1, 1.0]} />
@@ -113,8 +134,20 @@ function Processor() {
 }
 
 function ThermalSensor() {
+  const ref = useRef<THREE.Group>(null);
+
+  useFrame((state) => {
+    if (!ref.current) return;
+    const cycle = getCycle(state.clock.elapsedTime);
+    ref.current.position.set(
+      THREE.MathUtils.lerp(SENS_EXPLODED.x, SENS_ASSEMBLED.x, cycle),
+      THREE.MathUtils.lerp(SENS_EXPLODED.y, SENS_ASSEMBLED.y, cycle),
+      THREE.MathUtils.lerp(SENS_EXPLODED.z, SENS_ASSEMBLED.z, cycle),
+    );
+  });
+
   return (
-    <group position={[3.4, 0.3, -1.5]} rotation={[0, -0.45, 0]}>
+    <group ref={ref} position={[15, 10, -10]}>
       <Float speed={1.7} rotationIntensity={0.45} floatIntensity={1}>
         <mesh castShadow rotation={[Math.PI / 2, 0, 0]}>
           <cylinderGeometry args={[0.42, 0.48, 0.7, 24]} />
@@ -143,93 +176,48 @@ function ThermalSensor() {
   );
 }
 
-const EJECTOR_IDLE = new THREE.Vector3(0, -1.15, -2.3);
-const EJECTOR_ACTIVE = new THREE.Vector3(0, -0.75, -0.6);
-const BATTERY_SPAWN = new THREE.Vector3(1.15, 0.62, 0);
-
-function EjectorRig({ isEjecting }: { isEjecting: boolean }) {
-  const rig = useRef<THREE.Group>(null);
-  const battery = useRef<THREE.Group>(null);
-  const batterySpin = useRef<THREE.Group>(null);
-  const batteryMat = useRef<THREE.MeshStandardMaterial>(null);
+function Ejector({ isEjecting }: { isEjecting: boolean }) {
+  const ref = useRef<THREE.Group>(null);
   const startTime = useRef(0);
   const wasEjecting = useRef(false);
   const target = useMemo(() => new THREE.Vector3(), []);
-  const batteryTarget = useMemo(() => new THREE.Vector3(), []);
 
   useFrame((state, delta) => {
+    if (!ref.current) return;
     const t = state.clock.elapsedTime;
     if (isEjecting && !wasEjecting.current) startTime.current = t;
     wasEjecting.current = isEjecting;
-    const e = isEjecting ? t - startTime.current : -1;
 
-    target.copy(EJECTOR_IDLE);
     let scaleTarget = 1;
-    let tiltTarget = 0;
-    if (e >= 0) {
-      const k0 = easeOutCubic(clamp01(e / 0.4));
-      target.lerpVectors(EJECTOR_IDLE, EJECTOR_ACTIVE, k0);
-      scaleTarget = 1 + 2 * k0;
-      if (e >= 0.4) {
-        const k1 = easeInOut(clamp01((e - 0.4) / 0.6));
-        target.x = EJECTOR_ACTIVE.x + k1 * 1.1;
-        tiltTarget = -0.12 * Math.sin(k1 * Math.PI);
-      }
-    }
-
-    batteryTarget.copy(BATTERY_SPAWN);
-    let batteryScale = 0;
-    if (e >= 0) {
-      if (e < 0.35) {
-        batteryScale = clamp01(e / 0.35);
-      } else if (e < 0.5) {
-        batteryScale = 1;
-      } else if (e < 1.4) {
-        const k3 = clamp01((e - 0.5) / 0.9);
-        batteryTarget.x = BATTERY_SPAWN.x + k3 * k3 * 4.4;
-        batteryTarget.y = BATTERY_SPAWN.y + Math.sin(k3 * Math.PI) * 0.4;
-        batteryScale = 1;
+    if (!isEjecting) {
+      const cycle = getCycle(t);
+      target.set(
+        THREE.MathUtils.lerp(EJ_EXPLODED.x, EJ_ASSEMBLED.x, cycle),
+        THREE.MathUtils.lerp(EJ_EXPLODED.y, EJ_ASSEMBLED.y, cycle),
+        THREE.MathUtils.lerp(EJ_EXPLODED.z, EJ_ASSEMBLED.z, cycle),
+      );
+    } else {
+      const e = t - startTime.current;
+      if (e < 0.4) {
+        const k = easeOutCubic(clamp01(e / 0.4));
+        target.lerpVectors(ref.current.position, EJ_STRIKE, k);
+        scaleTarget = 1 + 2 * k;
       } else {
-        batteryTarget.x = BATTERY_SPAWN.x + 4.4;
-        batteryTarget.y = BATTERY_SPAWN.y;
-        batteryScale = 1;
+        const k = easeInQuad(clamp01((e - 0.4) / 1.0));
+        target.set(EJ_STRIKE.x + k * 8.5, EJ_STRIKE.y, EJ_STRIKE.z);
+        scaleTarget = 3;
       }
     }
 
-    const kr = 1 - Math.exp(-delta * 6);
-    const kb = 1 - Math.exp(-delta * 10);
-    const shrinking =
-      batteryScale < (battery.current?.scale.x ?? 0) ? 14 : 8;
-    const ks = 1 - Math.exp(-delta * shrinking);
-    if (rig.current) {
-      rig.current.position.lerp(target, kr);
-      rig.current.scale.setScalar(
-        THREE.MathUtils.lerp(rig.current.scale.x, scaleTarget, kr),
-      );
-      rig.current.rotation.z = THREE.MathUtils.lerp(
-        rig.current.rotation.z,
-        tiltTarget,
-        kr,
-      );
-    }
-    if (battery.current) {
-      battery.current.position.lerp(batteryTarget, kb);
-      battery.current.scale.setScalar(
-        THREE.MathUtils.lerp(battery.current.scale.x, batteryScale, ks),
-      );
-    }
-    if (batterySpin.current) {
-      const flying = e >= 0.5 && e < 1.7;
-      batterySpin.current.rotation.z += delta * (flying ? 16 : 1.5);
-      batterySpin.current.rotation.x += delta * 1.2;
-    }
-    if (batteryMat.current) {
-      batteryMat.current.emissiveIntensity = 1.6 + Math.sin(t * 6) * 0.7;
-    }
+    const k = 1 - Math.exp(-delta * (isEjecting ? 8 : 4));
+    ref.current.position.lerp(target, k);
+    ref.current.scale.setScalar(
+      THREE.MathUtils.lerp(ref.current.scale.x, scaleTarget, k),
+    );
   });
 
   return (
-    <group ref={rig} position={[0, -1.15, -2.3]}>
+    <group ref={ref} position={[-15, -10, -10]}>
       <Float speed={1.6} rotationIntensity={0.35} floatIntensity={0.7}>
         <mesh castShadow position={[0, 0, 0]}>
           <boxGeometry args={[0.9, 0.18, 0.9]} />
@@ -272,36 +260,99 @@ function EjectorRig({ isEjecting }: { isEjecting: boolean }) {
           />
         </mesh>
       </Float>
-      <group ref={battery} position={[1.15, 0.62, 0]} scale={0}>
-        <group ref={batterySpin}>
-          <mesh castShadow>
-            <boxGeometry args={[0.5, 0.28, 0.32]} />
-            <meshStandardMaterial
-              ref={batteryMat}
-              color="#3f1d1d"
-              emissive="#ef4444"
-              emissiveIntensity={1.6}
-              metalness={0.4}
-              roughness={0.45}
-            />
-          </mesh>
-          <mesh position={[0.14, 0.17, 0]}>
-            <cylinderGeometry args={[0.05, 0.05, 0.06, 12]} />
-            <meshStandardMaterial
-              color="#cbd5e1"
-              metalness={1}
-              roughness={0.25}
-            />
-          </mesh>
-          <mesh position={[0, 0, 0.165]}>
-            <boxGeometry args={[0.34, 0.07, 0.012]} />
-            <meshStandardMaterial
-              color="#f59e0b"
-              emissive="#f59e0b"
-              emissiveIntensity={0.9}
-            />
-          </mesh>
-        </group>
+    </group>
+  );
+}
+
+function BatteryTarget({ isEjecting }: { isEjecting: boolean }) {
+  const ref = useRef<THREE.Group>(null);
+  const spin = useRef<THREE.Group>(null);
+  const mat = useRef<THREE.MeshStandardMaterial>(null);
+  const startTime = useRef(0);
+  const wasEjecting = useRef(false);
+
+  useFrame((state, delta) => {
+    if (!ref.current) return;
+    const t = state.clock.elapsedTime;
+    if (isEjecting && !wasEjecting.current) startTime.current = t;
+    wasEjecting.current = isEjecting;
+
+    let scaleTarget = 0;
+    if (isEjecting) {
+      const e = t - startTime.current;
+      if (e < 0.35) {
+        scaleTarget = clamp01(e / 0.35);
+        ref.current.position.set(
+          BATTERY_CENTER.x,
+          BATTERY_CENTER.y,
+          BATTERY_CENTER.z,
+        );
+      } else if (e < 0.5) {
+        scaleTarget = 1;
+      } else if (e < 1.4) {
+        const k = clamp01((e - 0.5) / 0.9);
+        ref.current.position.set(
+          BATTERY_CENTER.x + k * k * 7.5,
+          BATTERY_CENTER.y + Math.sin(k * Math.PI) * 0.5,
+          BATTERY_CENTER.z,
+        );
+        scaleTarget = 1;
+      } else {
+        ref.current.position.set(
+          BATTERY_CENTER.x + 7.5,
+          BATTERY_CENTER.y,
+          BATTERY_CENTER.z,
+        );
+        scaleTarget = 1;
+      }
+    } else {
+      ref.current.position.copy(BATTERY_CENTER);
+    }
+
+    const ks = 1 - Math.exp(-delta * (scaleTarget < ref.current.scale.x ? 14 : 8));
+    ref.current.scale.setScalar(
+      THREE.MathUtils.lerp(ref.current.scale.x, scaleTarget, ks),
+    );
+    if (spin.current) {
+      const flying = isEjecting && t - startTime.current >= 0.5;
+      spin.current.rotation.z += delta * (flying ? 16 : 1.5);
+      spin.current.rotation.x += delta * 1.2;
+    }
+    if (mat.current) {
+      mat.current.emissiveIntensity = 1.6 + Math.sin(t * 6) * 0.7;
+    }
+  });
+
+  return (
+    <group ref={ref} position={[0, 0.2, 0.8]} scale={0}>
+      <group ref={spin}>
+        <mesh castShadow>
+          <boxGeometry args={[0.62, 0.34, 0.4]} />
+          <meshStandardMaterial
+            ref={mat}
+            color="#3f1d1d"
+            emissive="#ef4444"
+            emissiveIntensity={1.6}
+            metalness={0.4}
+            roughness={0.45}
+          />
+        </mesh>
+        <mesh position={[0.17, 0.2, 0]}>
+          <cylinderGeometry args={[0.06, 0.06, 0.07, 12]} />
+          <meshStandardMaterial
+            color="#cbd5e1"
+            metalness={1}
+            roughness={0.25}
+          />
+        </mesh>
+        <mesh position={[0, 0, 0.205]}>
+          <boxGeometry args={[0.42, 0.08, 0.012]} />
+          <meshStandardMaterial
+            color="#f59e0b"
+            emissive="#f59e0b"
+            emissiveIntensity={0.9}
+          />
+        </mesh>
       </group>
     </group>
   );
@@ -364,7 +415,8 @@ export function Scene() {
           <ParticleField />
           <Processor />
           <ThermalSensor />
-          <EjectorRig isEjecting={isEjecting} />
+          <Ejector isEjecting={isEjecting} />
+          <BatteryTarget isEjecting={isEjecting} />
         </ParallaxRig>
       </Canvas>
     </div>

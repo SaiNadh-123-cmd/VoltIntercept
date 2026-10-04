@@ -14,9 +14,28 @@ export async function onRequest(context) {
   try {
     const { base64Image } = await context.request.json();
 
-    const prompt = `Analyze this image for hazardous lithium-ion, lipo, or alkaline batteries. There may be multiple batteries in the image.
-Respond STRICTLY with raw JSON matching this structure (no markdown):
-{"detected": true, "batteryCount": 1, "totalFinancialDamage": 120000, "totalWeightKg": 0.05, "batteries": [{"batteryName": "18650 Cylindrical Cell", "capacity": "3000 mAh", "matchId": "18650-cell", "dangerLevel": "High", "financialDamage": 120000, "weightKg": 0.05}]}
+    const prompt = `Analyze this image for hazardous lithium-ion, lipo, or alkaline batteries. 
+Count the exact number of batteries visible. For EACH battery detected, estimate its specific type (e.g., CR2032 Coin Cell, 18650 Cell, Smartphone LiPo, Drone Pack), its typical capacity (mAh), and its weight (kg).
+Assign a realistic 'financialDamage' fire-risk value based on its size if crushed in a recycling facility (e.g., Coin cell = 5000, 18650 cell = 120000, Large LiPo = 500000+).
+Calculate the exact 'totalFinancialDamage' (sum of all financialDamage) and 'totalWeightKg' (sum of all weightKg).
+
+Respond STRICTLY with raw JSON (no markdown block, just the object) matching this structure:
+{
+  "detected": true/false,
+  "batteryCount": <actual count>,
+  "totalFinancialDamage": <calculated sum>,
+  "totalWeightKg": <calculated sum>,
+  "batteries": [
+    {
+      "batteryName": "<estimated type>",
+      "capacity": "<estimated mAh>",
+      "matchId": "bt-<random numbers>",
+      "dangerLevel": "<Low|Medium|High|Critical>",
+      "financialDamage": <dynamic number>,
+      "weightKg": <dynamic number>
+    }
+  ]
+}
 If no battery is present, return: {"detected": false, "batteryCount": 0, "totalFinancialDamage": 0, "totalWeightKg": 0, "batteries": []}`;
 
     // Using Gemini 3.8 Flash

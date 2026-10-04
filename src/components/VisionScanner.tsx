@@ -161,18 +161,26 @@ const compressImage = async (
 };
 
 const enrichBattery = (battery: AiBattery): EnrichedBattery => {
-  const profile = resolveProfile(String(battery.matchId ?? ""));
+  const rawMatchId = String(battery.matchId ?? "").trim();
+  const profile = resolveProfile(rawMatchId);
+  const knownMatch = BATTERY_PROFILES.some(
+    (b) => b.id === rawMatchId.toLowerCase(),
+  );
+  const dynamicDamage = Number(battery.financialDamage ?? 0);
   const damageAmount =
-    Number(battery.financialDamage ?? 0) || profile.financialDamageMah;
+    dynamicDamage > 0 ? dynamicDamage : profile.financialDamageMah;
   const displayName = String(battery.batteryName ?? "") || "Unknown Battery";
   return {
     batteryName: displayName,
     type: displayName,
     capacity: String(battery.capacity ?? "—"),
-    matchId: profile.id,
+    matchId: knownMatch ? profile.id : rawMatchId || profile.id,
     confidence: Number(battery.confidence ?? 90),
     dangerLevel: String(battery.dangerLevel ?? "Unknown"),
-    saved: profile.financialDamage,
+    saved:
+      dynamicDamage > 0
+        ? `₹${dynamicDamage.toLocaleString("en-IN")}`
+        : profile.financialDamage,
     damageAmount,
     weightKg: Number(battery.weightKg ?? 0),
   };
