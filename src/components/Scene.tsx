@@ -54,10 +54,16 @@ function ParticleField() {
   );
 }
 
-const getCycle = (t: number) => (Math.sin(t * 0.8) + 1) / 2;
 const easeOutCubic = (x: number) => 1 - Math.pow(1 - x, 3);
 const easeInQuad = (x: number) => x * x;
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
+
+const showcaseX = (s: number): number => {
+  if (s < 0 || s >= 5) return -30;
+  if (s < 1) return THREE.MathUtils.lerp(-15, 0, easeOutCubic(s));
+  if (s < 4) return 0;
+  return THREE.MathUtils.lerp(0, 15, easeInQuad(s - 4));
+};
 
 const gold = { color: "#d4af37", metalness: 1, roughness: 0.3 };
 const darkMetal = { color: "#2b3442", metalness: 0.8, roughness: 0.35 };
@@ -73,30 +79,34 @@ const CHIP_GRID: Array<[number, number]> = [
 
 const GPIO_PINS = [-0.3, -0.18, -0.06, 0.06, 0.18, 0.3];
 
-const PROC_EXPLODED = new THREE.Vector3(-15, 10, -2);
-const PROC_ASSEMBLED = new THREE.Vector3(0, -1, 3);
-const SENS_EXPLODED = new THREE.Vector3(15, 10, -2);
-const SENS_ASSEMBLED = new THREE.Vector3(0, 1.5, 3);
-const EJ_EXPLODED = new THREE.Vector3(-15, -10, -2);
-const EJ_ASSEMBLED = new THREE.Vector3(2, 0, 3);
 const EJ_STRIKE = new THREE.Vector3(-2, 0, 2);
 const BATTERY_CENTER = new THREE.Vector3(0, 0.2, 2.6);
 
-function Processor() {
+function Processor({ isEjecting }: { isEjecting: boolean }) {
   const ref = useRef<THREE.Group>(null);
+  const target = useMemo(() => new THREE.Vector3(-30, -1, 3), []);
 
-  useFrame((state) => {
+  useFrame((state, delta) => {
     if (!ref.current) return;
-    const cycle = getCycle(state.clock.elapsedTime);
-    ref.current.position.set(
-      THREE.MathUtils.lerp(PROC_EXPLODED.x, PROC_ASSEMBLED.x, cycle),
-      THREE.MathUtils.lerp(PROC_EXPLODED.y, PROC_ASSEMBLED.y, cycle),
-      THREE.MathUtils.lerp(PROC_EXPLODED.z, PROC_ASSEMBLED.z, cycle),
-    );
+    const t = state.clock.elapsedTime;
+    if (!isEjecting) {
+      const local = t % 15;
+      if (local >= 0 && local < 5) {
+        target.set(showcaseX(local), -1, 3);
+        if (local >= 1 && local < 4) {
+          ref.current.rotation.y += delta * ((Math.PI * 2) / 3);
+        }
+      } else {
+        target.set(-30, -1, 3);
+      }
+    } else {
+      target.set(-30, -1, 3);
+    }
+    ref.current.position.lerp(target, 1 - Math.exp(-delta * 6));
   });
 
   return (
-    <group ref={ref} position={[-15, 10, -2]} scale={[3.5, 3.5, 3.5]}>
+    <group ref={ref} position={[-30, -1, 3]} scale={[1.5, 1.5, 1.5]}>
       <Float speed={2} rotationIntensity={0.5} floatIntensity={1.1}>
         <mesh castShadow>
           <boxGeometry args={[1.5, 0.1, 1.0]} />
@@ -133,21 +143,31 @@ function Processor() {
   );
 }
 
-function ThermalSensor() {
+function ThermalSensor({ isEjecting }: { isEjecting: boolean }) {
   const ref = useRef<THREE.Group>(null);
+  const target = useMemo(() => new THREE.Vector3(-30, 1.5, 3), []);
 
-  useFrame((state) => {
+  useFrame((state, delta) => {
     if (!ref.current) return;
-    const cycle = getCycle(state.clock.elapsedTime);
-    ref.current.position.set(
-      THREE.MathUtils.lerp(SENS_EXPLODED.x, SENS_ASSEMBLED.x, cycle),
-      THREE.MathUtils.lerp(SENS_EXPLODED.y, SENS_ASSEMBLED.y, cycle),
-      THREE.MathUtils.lerp(SENS_EXPLODED.z, SENS_ASSEMBLED.z, cycle),
-    );
+    const t = state.clock.elapsedTime;
+    if (!isEjecting) {
+      const local = (t % 15) - 5;
+      if (local >= 0 && local < 5) {
+        target.set(showcaseX(local), 1.5, 3);
+        if (local >= 1 && local < 4) {
+          ref.current.rotation.y += delta * ((Math.PI * 2) / 3);
+        }
+      } else {
+        target.set(-30, 1.5, 3);
+      }
+    } else {
+      target.set(-30, 1.5, 3);
+    }
+    ref.current.position.lerp(target, 1 - Math.exp(-delta * 6));
   });
 
   return (
-    <group ref={ref} position={[15, 10, -2]} scale={[3.5, 3.5, 3.5]}>
+    <group ref={ref} position={[-30, 1.5, 3]} scale={[1.5, 1.5, 1.5]}>
       <Float speed={1.7} rotationIntensity={0.45} floatIntensity={1}>
         <mesh castShadow rotation={[Math.PI / 2, 0, 0]}>
           <cylinderGeometry args={[0.42, 0.48, 0.7, 24]} />
@@ -188,25 +208,33 @@ function Ejector({ isEjecting }: { isEjecting: boolean }) {
     if (isEjecting && !wasEjecting.current) startTime.current = t;
     wasEjecting.current = isEjecting;
 
-    let scaleTarget = 3.5;
+    let scaleTarget = 1.5;
     if (!isEjecting) {
-      const cycle = getCycle(t);
-      target.set(
-        THREE.MathUtils.lerp(EJ_EXPLODED.x, EJ_ASSEMBLED.x, cycle),
-        THREE.MathUtils.lerp(EJ_EXPLODED.y, EJ_ASSEMBLED.y, cycle),
-        THREE.MathUtils.lerp(EJ_EXPLODED.z, EJ_ASSEMBLED.z, cycle),
-      );
+      const local = (t % 15) - 10;
+      if (local >= 0 && local < 5) {
+        target.set(showcaseX(local), 0, 3);
+        if (local >= 1 && local < 4) {
+          ref.current.rotation.y += delta * ((Math.PI * 2) / 3);
+        }
+      } else {
+        target.set(-30, 0, 3);
+      }
     } else {
       const e = t - startTime.current;
       if (e < 0.4) {
         const k = easeOutCubic(clamp01(e / 0.4));
         target.lerpVectors(ref.current.position, EJ_STRIKE, k);
-        scaleTarget = 3.5 * (1 + 2 * k);
+        scaleTarget = 1.5 * (1 + 2 * k);
       } else {
         const k = easeInQuad(clamp01((e - 0.4) / 1.0));
         target.set(EJ_STRIKE.x + k * 8.5, EJ_STRIKE.y, EJ_STRIKE.z);
-        scaleTarget = 10.5;
+        scaleTarget = 4.5;
       }
+      ref.current.rotation.y = THREE.MathUtils.lerp(
+        ref.current.rotation.y,
+        0,
+        1 - Math.exp(-delta * 6),
+      );
     }
 
     const k = 1 - Math.exp(-delta * (isEjecting ? 8 : 4));
@@ -217,7 +245,7 @@ function Ejector({ isEjecting }: { isEjecting: boolean }) {
   });
 
   return (
-    <group ref={ref} position={[-15, -10, -2]} scale={[3.5, 3.5, 3.5]}>
+    <group ref={ref} position={[-30, 0, 3]} scale={[1.5, 1.5, 1.5]}>
       <Float speed={1.6} rotationIntensity={0.35} floatIntensity={0.7}>
         <mesh castShadow position={[0, 0, 0]}>
           <boxGeometry args={[0.9, 0.18, 0.9]} />
@@ -414,8 +442,8 @@ export function Scene() {
         <EjectorRimLight isEjecting={isEjecting} />
         <ParallaxRig>
           <ParticleField />
-          <Processor />
-          <ThermalSensor />
+          <Processor isEjecting={isEjecting} />
+          <ThermalSensor isEjecting={isEjecting} />
           <Ejector isEjecting={isEjecting} />
           <BatteryTarget isEjecting={isEjecting} />
         </ParallaxRig>
