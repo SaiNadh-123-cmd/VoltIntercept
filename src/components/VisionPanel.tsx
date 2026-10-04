@@ -1,14 +1,13 @@
 import { motion } from "framer-motion";
-import { useMission } from "../context/MissionContext";
-import { resolveProfile, VisionScanner, type AiScanResult } from "./VisionScanner";
+import { useMission, type HazardBatchPayload } from "../context/MissionContext";
+import { VisionScanner } from "./VisionScanner";
 
 export function VisionPanel() {
-  const { recordInterception } = useMission();
+  const { recordBatchInterception } = useMission();
 
-  const onHazardDetected = (data: AiScanResult) => {
-    if (!data.detected) return;
-    const profile = resolveProfile(String(data.matchId ?? ""));
-    recordInterception(profile, Number(data.confidence ?? 90));
+  const onHazardDetected = (batch: HazardBatchPayload) => {
+    if (!batch.detected || batch.batteryCount <= 0) return;
+    recordBatchInterception(batch);
   };
 
   return (

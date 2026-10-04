@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import Webcam from "react-webcam";
-import { useMission } from "../context/MissionContext";
+import { useMission, type HazardBatchPayload } from "../context/MissionContext";
 import { BATTERIES, BATTERY_PROFILES, type BatteryProfile } from "./simulator/batteries";
 
 export type AiScanResult = {
@@ -62,7 +62,7 @@ type ScanOutcome = {
 type Source = "idle" | "webcam" | "upload";
 
 type VisionScannerProps = {
-  onHazardDetected: (data: AiScanResult) => void;
+  onHazardDetected: (batch: HazardBatchPayload) => void;
 };
 
 const MATCH_KEYWORDS: Array<[string, string]> = [
@@ -184,7 +184,7 @@ function CornerBrackets() {
 }
 
 export function VisionScanner({ onHazardDetected }: VisionScannerProps) {
-  const { setAlertMode, ejectFlash } = useMission();
+  const { setAlertMode, ejectFlash, isEjecting } = useMission();
   const [source, setSource] = useState<Source>("idle");
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -199,6 +199,7 @@ export function VisionScanner({ onHazardDetected }: VisionScannerProps) {
   const webcamRef = useRef<Webcam>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const prevFlash = useRef(ejectFlash);
+  const prevEjecting = useRef(isEjecting);
 
   useEffect(() => {
     if (prevFlash.current && !ejectFlash) {
@@ -209,6 +210,14 @@ export function VisionScanner({ onHazardDetected }: VisionScannerProps) {
     }
     prevFlash.current = ejectFlash;
   }, [ejectFlash]);
+
+  useEffect(() => {
+    if (prevEjecting.current && !isEjecting) {
+      setScanResult(null);
+      setStreamClear(false);
+    }
+    prevEjecting.current = isEjecting;
+  }, [isEjecting]);
 
   const handleDetection = (data: AiScanResult) => {
     const rawItems = Array.isArray(data.batteries) ? data.batteries : [];
@@ -240,11 +249,20 @@ export function VisionScanner({ onHazardDetected }: VisionScannerProps) {
     setFlash(true);
     setAlertMode(true);
     window.setTimeout(() => {
-      items.forEach((battery) => {
-        onHazardDetected({ ...battery, detected: true });
+      onHazardDetected({
+        detected: true,
+        batteryCount: count,
+        totalFinancialDamage: totalDamage,
+        totalWeightKg: totalWeight,
+        batteries: enriched.map((b) => ({
+          name: b.type,
+          capacity: b.capacity,
+          financialDamage: b.saved,
+          confidence: b.confidence,
+        })),
       });
       setScanResult({
-        count: Number(data.batteryCount ?? 0) || enriched.length,
+        count,
         totalDamage,
         totalWeight,
         batteries: enriched,

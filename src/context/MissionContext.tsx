@@ -1,5 +1,4 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
-import type { BatteryProfile } from "../components/simulator/batteries";
 
 export type Phase = "boot" | "waiting" | "hud";
 export type VisionMode = "idle" | "camera" | "upload";
@@ -17,6 +16,19 @@ export type Interception = {
   confidence: number;
 };
 
+export type HazardBatchPayload = {
+  detected: boolean;
+  batteryCount: number;
+  totalFinancialDamage: number;
+  totalWeightKg: number;
+  batteries: Array<{
+    name: string;
+    capacity: string;
+    financialDamage: string;
+    confidence: number;
+  }>;
+};
+
 type MissionContextValue = {
   phase: Phase;
   setPhase: (phase: Phase) => void;
@@ -31,8 +43,9 @@ type MissionContextValue = {
   telemetry: Telemetry;
   eject: () => void;
   ejectFlash: boolean;
+  isEjecting: boolean;
   lastInterception: Interception | null;
-  recordInterception: (profile: BatteryProfile, confidence: number) => void;
+  recordBatchInterception: (batch: HazardBatchPayload) => void;
   explorerOpen: boolean;
   setExplorerOpen: (value: boolean) => void;
   simulatorOpen: boolean;
@@ -55,6 +68,7 @@ export function MissionProvider({ children }: { children: ReactNode }) {
     waste: 0,
   });
   const [ejectFlash, setEjectFlash] = useState(false);
+  const [isEjecting, setIsEjecting] = useState(false);
   const [lastInterception, setLastInterception] = useState<Interception | null>(null);
   const [explorerOpen, setExplorerOpen] = useState(false);
   const [simulatorOpen, setSimulatorOpen] = useState(false);
@@ -83,6 +97,7 @@ export function MissionProvider({ children }: { children: ReactNode }) {
       cursorPointer,
       setCursorPointer,
       ejectFlash,
+      isEjecting,
       eject: () => {
         setTelemetry((prev) => ({
           fires: prev.fires + 1,
@@ -93,19 +108,24 @@ export function MissionProvider({ children }: { children: ReactNode }) {
         window.setTimeout(() => setShake(false), 560);
         setEjectFlash(true);
         window.setTimeout(() => setEjectFlash(false), 1800);
+        setIsEjecting(true);
+        window.setTimeout(() => setIsEjecting(false), 2500);
       },
       lastInterception,
-      recordInterception: (profile, confidence) => {
-        setLastInterception({
-          name: profile.name,
-          capacity: profile.capacity,
-          financialDamage: profile.financialDamage,
-          confidence,
-        });
+      recordBatchInterception: (batch) => {
+        const last = batch.batteries[batch.batteries.length - 1];
+        if (last) {
+          setLastInterception({
+            name: last.name,
+            capacity: last.capacity,
+            financialDamage: last.financialDamage,
+            confidence: last.confidence,
+          });
+        }
         setTelemetry((prev) => ({
-          fires: prev.fires + 1,
-          damage: prev.damage + profile.financialDamageMah,
-          waste: Number((prev.waste + 0.3).toFixed(1)),
+          fires: prev.fires + batch.batteryCount,
+          damage: prev.damage + Math.round(batch.totalFinancialDamage),
+          waste: Number((prev.waste + batch.totalWeightKg).toFixed(1)),
         }));
       },
     }),
@@ -120,6 +140,7 @@ export function MissionProvider({ children }: { children: ReactNode }) {
       simulatorOpen,
       cursorPointer,
       ejectFlash,
+      isEjecting,
       lastInterception,
     ],
   );
