@@ -17,6 +17,10 @@ import { BATTERIES, BATTERY_PROFILES, type BatteryProfile } from "./simulator/ba
 
 export type AiScanResult = {
   detected: boolean;
+  batteryCount?: number;
+  totalFinancialDamage?: number;
+  totalWeightKg?: number;
+  batteries?: AiBattery[];
   batteryName?: string;
   capacity?: string;
   matchId?: string;
@@ -27,7 +31,17 @@ export type AiScanResult = {
   message?: string;
 };
 
-type InterceptionResult = {
+export type AiBattery = {
+  batteryName?: string;
+  capacity?: string;
+  matchId?: string;
+  confidence?: number;
+  dangerLevel?: string;
+  financialDamage?: number;
+  weightKg?: number;
+};
+
+type EnrichedBattery = {
   type: string;
   capacity: string;
   matchId: string;
@@ -35,6 +49,14 @@ type InterceptionResult = {
   dangerLevel: string;
   saved: string;
   damageAmount: number;
+  weightKg: number;
+};
+
+type ScanOutcome = {
+  count: number;
+  totalDamage: number;
+  totalWeight: number;
+  batteries: EnrichedBattery[];
 };
 
 type Source = "idle" | "webcam" | "upload";
@@ -94,6 +116,46 @@ export function resolveProfile(matchId: string): BatteryProfile {
   );
 }
 
+const compressImage = async (
+  base64Str: string,
+  maxWidth = 800,
+): Promise<string> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.src = base64Str;
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      const scaleSize = Math.min(1, maxWidth / img.width);
+      canvas.width = Math.max(1, Math.round(img.width * scaleSize));
+      canvas.height = Math.max(1, Math.round(img.height * scaleSize));
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        resolve(base64Str);
+        return;
+      }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL("image/jpeg", 0.6));
+    };
+    img.onerror = () => resolve(base64Str);
+  });
+};
+
+const enrichBattery = (battery: AiBattery): EnrichedBattery => {
+  const profile = resolveProfile(String(battery.matchId ?? ""));
+  const damageAmount =
+    Number(battery.financialDamage ?? 0) || profile.financialDamageMah;
+  return {
+    type: String(battery.batteryName ?? "") || "Unknown Battery",
+    capacity: String(battery.capacity ?? "—"),
+    matchId: profile.id,
+    confidence: Number(battery.confidence ?? 90),
+    dangerLevel: String(battery.dangerLevel ?? "Unknown"),
+    saved: profile.financialDamage,
+    damageAmount,
+    weightKg: Number(battery.weightKg ?? 0),
+  };
+};
+
 function CornerBrackets() {
   const arm = "absolute h-7 w-7 border-cyan-300";
   return (
@@ -113,7 +175,7 @@ export function VisionScanner({ onHazardDetected }: VisionScannerProps) {
   const [dragging, setDragging] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [ejecting, setEjecting] = useState(false);
-  const [scanResult, setScanResult] = useState<InterceptionResult | null>(null);
+  const [scanResult, setScanResult] = useState<ScanOutcome | null>(null);
   const [streamClear, setStreamClear] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState(false);
@@ -133,22 +195,30 @@ export function VisionScanner({ onHazardDetected }: VisionScannerProps) {
     prevFlash.current = ejectFlash;
   }, [ejectFlash]);
 
-  const triggerInterception = (data: AiScanResult) => {
-    const profile = resolveProfile(String(data.matchId ?? ""));
+  const handleDetection = (data: AiScanResult) => {
+    const items = Array.isArray(data.batteries) ? data.batteries : [];
+    if (!data.detected || items.length === 0) {
+      setStreamClear(true);
+      window.setTimeout(() => setStreamClear(false), 3500);
+      return;
+    }
+    const enriched = items.map(enrichBattery);
+    const totalDamage =
+      Number(data.totalFinancialDamage ?? 0) ||
+      enriched.reduce((sum, b) => sum + b.damageAmount, 0);
+    const totalWeight = Number(data.totalWeightKg ?? 0);
     setEjecting(true);
     setFlash(true);
     setAlertMode(true);
     window.setTimeout(() => {
-      onHazardDetected(data);
+      items.forEach((battery) => {
+        onHazardDetected({ ...battery, detected: true });
+      });
       setScanResult({
-        type: String(data.batteryName ?? "") || "Unknown Battery",
-        capacity: String(data.capacity ?? "—"),
-        matchId: profile.id,
-        confidence: Number(data.confidence ?? 0),
-        dangerLevel: String(data.dangerLevel ?? "Unknown"),
-        saved: profile.financialDamage,
-        damageAmount:
-          Number(data.financialDamage ?? 0) || profile.financialDamageMah,
+        count: Number(data.batteryCount ?? 0) || enriched.length,
+        totalDamage,
+        totalWeight,
+        batteries: enriched,
       });
       setEjecting(false);
     }, 1200);
@@ -158,16 +228,15 @@ export function VisionScanner({ onHazardDetected }: VisionScannerProps) {
     }, 2800);
   };
 
-  const analyzeImage = async (base64ImageWithHeader: string) => {
+  const analyzeImage = async (rawBase64Image: string) => {
     setIsAnalyzing(true);
     setError(null);
     setScanResult(null);
     setStreamClear(false);
 
     try {
-      const base64Data = base64ImageWithHeader.includes(",")
-        ? base64ImageWithHeader.split(",")[1]
-        : base64ImageWithHeader;
+      const compressedImage = await compressImage(rawBase64Image);
+      const base64Data = compressedImage.split(",")[1];
 
       const response = await fetch("/api/scan", {
         method: "POST",
@@ -175,7 +244,10 @@ export function VisionScanner({ onHazardDetected }: VisionScannerProps) {
         body: JSON.stringify({ base64Image: base64Data }),
       });
 
-      if (!response.ok) throw new Error("Backend Proxy Error");
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Backend Proxy Error: ${errText}`);
+      }
 
       const responseText = await response.text();
       const cleanJson = responseText
@@ -191,26 +263,27 @@ export function VisionScanner({ onHazardDetected }: VisionScannerProps) {
         data = JSON.parse(jsonMatch[0]);
       }
 
-      if (data.detected) {
-        triggerInterception(data);
-      } else {
-        setStreamClear(true);
-        window.setTimeout(() => setStreamClear(false), 3500);
-      }
+      handleDetection(data);
       setScanCount((c) => c + 1);
     } catch (err) {
       console.error("Scanner Error:", err);
       const mockData: AiScanResult = {
         detected: true,
-        batteryName: "18650 Cylindrical Cell",
-        capacity: "3000 mAh",
-        matchId: "18650-cell",
-        confidence: 94,
-        dangerLevel: "High",
-        financialDamage: 120000,
-        weightKg: 0.05,
+        batteryCount: 1,
+        totalFinancialDamage: 120000,
+        totalWeightKg: 0.05,
+        batteries: [
+          {
+            batteryName: "18650 Cylindrical Cell",
+            capacity: "3000 mAh",
+            matchId: "18650-cell",
+            dangerLevel: "High",
+            financialDamage: 120000,
+            weightKg: 0.05,
+          },
+        ],
       };
-      triggerInterception(mockData);
+      handleDetection(mockData);
       setScanCount((c) => c + 1);
     } finally {
       setIsAnalyzing(false);
@@ -276,9 +349,9 @@ export function VisionScanner({ onHazardDetected }: VisionScannerProps) {
   };
 
   const generatePDFReport = () => {
-    if (!scanResult) return;
+    if (!scanResult || scanResult.batteries.length === 0) return;
     const doc = new jsPDF();
-    const profile = resolveProfile(scanResult.matchId);
+    const firstProfile = resolveProfile(scanResult.batteries[0].matchId);
     const incidentId = `VI-${Math.floor(Math.random() * 0xffffff)
       .toString(16)
       .padStart(6, "0")
@@ -301,15 +374,24 @@ export function VisionScanner({ onHazardDetected }: VisionScannerProps) {
     doc.text(`Incident ID: ${incidentId}`, 14, 34);
     doc.text(`Date & Time: ${timestamp}`, 14, 40);
 
+    const telemetryBody: string[][] = [];
+    scanResult.batteries.forEach((b, i) => {
+      telemetryBody.push([`Battery ${i + 1} Type`, b.type]);
+      telemetryBody.push([`Battery ${i + 1} Capacity`, b.capacity]);
+      telemetryBody.push([
+        `Battery ${i + 1} Danger`,
+        `${b.dangerLevel} (CONF ${Math.round(b.confidence)}%)`,
+      ]);
+    });
+    telemetryBody.push([
+      "Action Taken",
+      "AUTONOMOUS EJECTION TO FIRE-SAFE SAND BIN",
+    ]);
+
     const telemetryTable = __createTable(doc, {
       startY: 46,
       head: [["Hazard Telemetry", "Value"]],
-      body: [
-        ["Battery Type", scanResult.type],
-        ["Capacity / Payload", scanResult.capacity],
-        ["Vision Confidence", `${Math.round(scanResult.confidence)}%`],
-        ["Action Taken", "AUTONOMOUS EJECTION TO FIRE-SAFE SAND BIN"],
-      ],
+      body: telemetryBody,
       theme: "grid",
       headStyles: { fillColor: [178, 34, 34] },
     });
@@ -320,10 +402,14 @@ export function VisionScanner({ onHazardDetected }: VisionScannerProps) {
       startY: afterFirst + 8,
       head: [["Risk Impact", "Mitigated Value"]],
       body: [
-        ["Danger Level", scanResult.dangerLevel],
+        ["Batteries Intercepted", String(scanResult.count)],
         [
-          "Facility Damage Prevented",
-          `Rs. ${scanResult.damageAmount.toLocaleString("en-IN")}`,
+          "Total Facility Damage Prevented",
+          `Rs. ${scanResult.totalDamage.toLocaleString("en-IN")}`,
+        ],
+        [
+          "Total Weight Diverted",
+          `${scanResult.totalWeight.toFixed(2)} kg`,
         ],
         ["Shredder Downtime Prevented", "High (Estimated 2 to 24 hours)"],
       ],
@@ -341,7 +427,8 @@ export function VisionScanner({ onHazardDetected }: VisionScannerProps) {
     doc.setFontSize(10);
     doc.setTextColor(30, 30, 30);
     const isButtonCell =
-      profile.id === "button-cell" || /alkaline/i.test(scanResult.type);
+      firstProfile.id === "button-cell" ||
+      scanResult.batteries.some((b) => /alkaline/i.test(b.type));
     const protocol = isButtonCell
       ? "RECYCLABLE. Standard universal waste routing. Neutralize electrolyte prior to mechanical shredding."
       : "RECYCLABLE. Do not crush. Route to specialized Hydrometallurgical recovery facility. Extracts Critical Minerals (Lithium, Nickel, Cobalt) yielding up to 98% material recovery via black mass refining.";
@@ -506,25 +593,48 @@ export function VisionScanner({ onHazardDetected }: VisionScannerProps) {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.85 }}
               transition={{ type: "spring", stiffness: 260, damping: 20 }}
-              className="pointer-events-none absolute left-1/2 top-[14%] z-10 w-[82%] -translate-x-1/2 rounded-2xl border border-emerald-400/60 bg-slate-950/85 p-4 backdrop-blur-xl shadow-[0_0_40px_rgba(16,185,129,0.45)]"
+              className="pointer-events-none absolute left-1/2 top-[8%] z-10 max-h-[76%] w-[86%] -translate-x-1/2 overflow-y-auto rounded-2xl border border-emerald-400/60 bg-slate-950/85 p-4 backdrop-blur-xl shadow-[0_0_40px_rgba(16,185,129,0.45)]"
             >
               <p className="flex items-center gap-1.5 font-mono text-[9px] tracking-[0.3em] text-emerald-300">
                 <ShieldCheck className="h-3.5 w-3.5" />
-                BATTERY INTERCEPTED
+                {scanResult.count}{" "}
+                {scanResult.count === 1 ? "BATTERY" : "BATTERIES"}{" "}
+                INTERCEPTED
               </p>
-              <p className="mt-1.5 text-base font-black text-white">
-                {scanResult.type}
-              </p>
-              <p className="font-mono text-[10px] text-cyan-200">
-                {scanResult.capacity} · {scanResult.matchId.toUpperCase()}
-              </p>
-              <p className="mt-1 font-mono text-[9px] tracking-[0.2em] text-slate-400">
-                DANGER {scanResult.dangerLevel.toUpperCase()} · CONF{" "}
-                {Math.round(scanResult.confidence)}%
-              </p>
-              <p className="mt-2 text-right font-mono text-xl font-black text-emerald-300 drop-shadow-[0_0_14px_rgba(16,185,129,0.8)]">
-                {scanResult.saved} SAVED
-              </p>
+              <div className="mt-2 space-y-2">
+                {scanResult.batteries.map((b, index) => (
+                  <div
+                    key={`${b.matchId}-${index}`}
+                    className="rounded-xl border border-white/10 bg-black/40 p-2.5"
+                  >
+                    <p className="text-sm font-black text-white">
+                      {b.type}
+                    </p>
+                    <p className="font-mono text-[10px] text-cyan-200">
+                      {b.capacity} · {b.matchId.toUpperCase()}
+                    </p>
+                    <div className="mt-1 flex items-center justify-between gap-2">
+                      <p className="font-mono text-[9px] tracking-[0.15em] text-slate-400">
+                        {b.dangerLevel.toUpperCase()} · CONF{" "}
+                        {Math.round(b.confidence)}%
+                      </p>
+                      <p className="font-mono text-sm font-black text-emerald-300">
+                        {b.saved} SAVED
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 flex items-end justify-between gap-3 border-t border-white/10 pt-2">
+                <p className="font-mono text-[9px] tracking-[0.2em] text-slate-400">
+                  TOTAL {scanResult.count} ITEM
+                  {scanResult.count === 1 ? "" : "S"} ·{" "}
+                  {scanResult.totalWeight.toFixed(2)} KG
+                </p>
+                <p className="text-right font-mono text-xl font-black text-emerald-300 drop-shadow-[0_0_14px_rgba(16,185,129,0.8)]">
+                  ₹{scanResult.totalDamage.toLocaleString("en-IN")} SAVED
+                </p>
+              </div>
               <motion.button
                 type="button"
                 onClick={generatePDFReport}
@@ -683,7 +793,8 @@ export function VisionScanner({ onHazardDetected }: VisionScannerProps) {
         ) : scanResult ? (
           <span className="flex items-center gap-1.5 text-emerald-300">
             <CheckCircle2 className="h-3.5 w-3.5" />
-            AI INTERCEPTION COMPLETE — THREAT CLASSIFIED &amp; LOGGED
+            AI INTERCEPTION COMPLETE — {scanResult.count} THREAT
+            {scanResult.count === 1 ? "" : "S"} CLASSIFIED &amp; LOGGED
           </span>
         ) : (
           <span className="text-slate-500">

@@ -8,7 +8,7 @@ export function VisionPanel() {
   const onHazardDetected = (data: AiScanResult) => {
     if (!data.detected) return;
     const profile = resolveProfile(String(data.matchId ?? ""));
-    recordInterception(profile, Number(data.confidence ?? 0));
+    recordInterception(profile, Number(data.confidence ?? 90));
   };
 
   return (
