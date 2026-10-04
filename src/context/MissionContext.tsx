@@ -116,10 +116,12 @@ export function MissionProvider({ children }: { children: ReactNode }) {
       ejectFlash,
       isEjecting,
       eject: () => {
+        const damageToAdd = incidentReport?.totalFinancialDamage ?? 0;
+        const weightToAdd = incidentReport?.totalWeightKg ?? 0;
         setTelemetry((prev) => ({
           fires: prev.fires + 1,
-          damage: prev.damage + 250000,
-          waste: Number((prev.waste + 0.4).toFixed(1)),
+          damage: prev.damage + damageToAdd,
+          waste: Number((prev.waste + weightToAdd).toFixed(1)),
         }));
         setShake(true);
         window.setTimeout(() => setShake(false), 560);
