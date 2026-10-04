@@ -41,6 +41,18 @@ If no battery is present, return: {"detected": false, "batteryCount": 0, "totalF
     });
 
     const data = await geminiResponse.json();
+
+    // 1. Check if Google returned an API error (e.g. bad key, quota exceeded)
+    if (data.error) {
+      throw new Error(`Google API Rejected: ${data.error.message}`);
+    }
+
+    // 2. Check if the response was blocked by safety settings or is empty
+    if (!data.candidates || data.candidates.length === 0) {
+      throw new Error("Google returned an empty response. It may have been blocked by safety filters.");
+    }
+
+    // 3. Safely extract the text
     const rawText = data.candidates[0].content.parts[0].text;
 
     return new Response(rawText, {
