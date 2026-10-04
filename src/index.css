@@ -225,13 +225,6 @@ select {
   background-size: 42px 42px;
 }
 
-.grid-noise-red {
-  background-image:
-    linear-gradient(rgba(239, 68, 68, 0.07) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(239, 68, 68, 0.07) 1px, transparent 1px);
-  background-size: 42px 42px;
-}
-
 .thermal-sample {
   background:
     radial-gradient(circle at 62% 48%, rgba(255, 80, 40, 0.95) 0 8%, transparent 22%),

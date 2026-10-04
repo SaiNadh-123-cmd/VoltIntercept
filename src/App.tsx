@@ -1,7 +1,6 @@
 import { useMission } from "./context/MissionContext";
 import { BootSequence } from "./components/BootSequence";
 import { CustomCursor } from "./components/CustomCursor";
-import { EjectionOverlay } from "./components/EjectionOverlay";
 import { HardwareExplorer } from "./components/explorer/HardwareExplorer";
 import { ImpactSimulator } from "./components/simulator/ImpactSimulator";
 import { HUD } from "./components/HUD";
@@ -21,7 +20,6 @@ export default function App() {
       <HUD />
       <HardwareExplorer />
       <ImpactSimulator />
-      <EjectionOverlay />
       {alertMode && (
         <div
           aria-hidden
