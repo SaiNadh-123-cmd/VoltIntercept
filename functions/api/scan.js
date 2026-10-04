@@ -24,7 +24,7 @@ Respond STRICTLY with raw JSON matching this structure (no markdown):
 If no battery is present, return: {"detected": false, "batteryCount": 0, "totalFinancialDamage": 0, "totalWeightKg": 0, "batteries": []}`;
 
     // Using the stable 1.5-flash endpoint
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${context.env.GEMINI_API_KEY}`;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${context.env.GEMINI_API_KEY}`;
 
     const geminiResponse = await fetch(geminiUrl, {
       method: "POST",
