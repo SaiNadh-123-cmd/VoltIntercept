@@ -30,14 +30,16 @@ export type HazardBatchPayload = {
 };
 
 export type IncidentReportData = {
-  count: number;
-  totalDamage: number;
-  totalWeight: number;
+  detected: boolean;
+  batteryCount: number;
+  totalWeightKg: number;
+  totalFinancialDamage: number;
   batteries: Array<{
-    type: string;
-    capacity: string;
+    batteryName: string;
     dangerLevel: string;
+    capacity: string;
     weightKg: number;
+    financialDamage: number;
   }>;
 };
 

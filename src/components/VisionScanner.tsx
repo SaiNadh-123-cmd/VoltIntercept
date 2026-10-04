@@ -288,14 +288,16 @@ export function VisionScanner({ onHazardDetected }: VisionScannerProps) {
         batteries: enriched,
       });
       setIncidentReport({
-        count,
-        totalDamage,
-        totalWeight,
+        detected: true,
+        batteryCount: count,
+        totalWeightKg: totalWeight,
+        totalFinancialDamage: totalDamage,
         batteries: enriched.map((b) => ({
-          type: b.type,
-          capacity: b.capacity,
+          batteryName: b.batteryName,
           dangerLevel: b.dangerLevel,
+          capacity: b.capacity,
           weightKg: b.weightKg,
+          financialDamage: b.damageAmount,
         })),
       });
       setEjecting(false);

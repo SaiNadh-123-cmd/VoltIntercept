@@ -1,4 +1,6 @@
 import { AnimatePresence, motion, useAnimation } from "framer-motion";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { AlertOctagon, Hexagon } from "lucide-react";
 import { useMission } from "../context/MissionContext";
 
@@ -16,41 +18,68 @@ export function CenterPanel() {
   };
 
   const downloadReport = () => {
-    if (!incidentReport) return;
+    const resultData = incidentReport;
+    if (!resultData || !resultData.detected) return;
 
-    const reportContent = `
-========================================
-VOLTINTERCEPT - INDUSTRIAL HAZARD REPORT
-========================================
-Date: ${new Date().toLocaleString()}
-Status: ${incidentReport.count > 0 ? "HAZARD DETECTED" : "CLEAR"}
-Total Batteries: ${incidentReport.count}
-Total Weight: ${incidentReport.totalWeight.toFixed(2)} kg
-Estimated Financial Damage Prevented: ₹${incidentReport.totalDamage.toLocaleString("en-IN")}
+    const doc = new jsPDF();
 
-DETAILED BREAKDOWN:
-${incidentReport.batteries
-  .map(
-    (b, i) =>
-      `[${i + 1}] ${b.type} | Danger:${b.dangerLevel} | Capacity: ${b.capacity} | Weight:${b.weightKg}kg`,
-  )
-  .join("\n")}
-========================================
-SYSTEM: EDGE VISION PIPELINE
-========================================
-  `.trim();
+    doc.setFontSize(22);
+    doc.setTextColor(220, 38, 38);
+    doc.text("VOLTINTERCEPT", 14, 20);
 
-    const blob = new Blob([reportContent], {
-      type: "text/plain;charset=utf-8",
+    doc.setFontSize(12);
+    doc.setTextColor(100, 100, 100);
+    doc.text("OFFICIAL INDUSTRIAL HAZARD REPORT", 14, 28);
+    doc.text(`Timestamp: ${new Date().toLocaleString()}`, 14, 34);
+
+    doc.setLineWidth(0.5);
+    doc.line(14, 38, 196, 38);
+
+    doc.setFontSize(14);
+    doc.setTextColor(0, 0, 0);
+    doc.text("Executive Summary", 14, 48);
+
+    doc.setFontSize(11);
+    doc.setTextColor(50, 50, 50);
+    doc.text(`System Status: HAZARD DETECTED - EJECTION PROTOCOL ENGAGED`, 14, 56);
+    doc.text(`Total Batteries Detected: ${resultData.batteryCount}`, 14, 62);
+    doc.text(`Total Hazard Weight: ${resultData.totalWeightKg} kg`, 14, 68);
+    doc.text(
+      `Estimated Financial Damage Prevented: INR ${resultData.totalFinancialDamage}`,
+      14,
+      74,
+    );
+
+    const tableData = resultData.batteries.map((b, i) => [
+      i + 1,
+      b.batteryName,
+      b.dangerLevel,
+      b.capacity,
+      `${b.weightKg} kg`,
+      `INR ${b.financialDamage}`,
+    ]);
+
+    autoTable(doc, {
+      startY: 85,
+      head: [
+        ["#", "Component Type", "Danger Level", "Capacity", "Weight", "Financial Risk"],
+      ],
+      body: tableData,
+      theme: "grid",
+      headStyles: { fillColor: [220, 38, 38], textColor: [255, 255, 255] },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+      styles: { fontSize: 10, cellPadding: 3 },
     });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `VoltIntercept_Report_${Date.now()}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+
+    doc.setFontSize(9);
+    doc.setTextColor(150, 150, 150);
+    doc.text(
+      "System: VoltIntercept Edge Vision Pipeline | Autonomous IoT Ejection Architecture",
+      14,
+      doc.internal.pageSize.height - 10,
+    );
+
+    doc.save(`VoltIntercept_Incident_Report_${Date.now()}.pdf`);
   };
 
   return (
@@ -96,7 +125,7 @@ SYSTEM: EDGE VISION PIPELINE
       </motion.button>
 
       <AnimatePresence>
-        {incidentReport && incidentReport.count > 0 && (
+        {incidentReport && incidentReport.detected && (
           <motion.button
             type="button"
             initial={{ opacity: 0, y: 12 }}
@@ -107,7 +136,7 @@ SYSTEM: EDGE VISION PIPELINE
             onClick={downloadReport}
             className="mt-4 w-full rounded-md border border-blue-500/50 bg-blue-600/20 px-4 py-3 font-mono uppercase tracking-widest text-blue-400 transition-all hover:bg-blue-600/40 hover:text-white"
           >
-            📄 Download Incident Report
+            📄 [ DOWNLOAD OFFICIAL REPORT .PDF ]
           </motion.button>
         )}
       </AnimatePresence>
