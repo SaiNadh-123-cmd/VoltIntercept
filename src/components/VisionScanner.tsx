@@ -184,7 +184,7 @@ function CornerBrackets() {
 }
 
 export function VisionScanner({ onHazardDetected }: VisionScannerProps) {
-  const { setAlertMode, ejectFlash, isEjecting } = useMission();
+  const { setAlertMode, ejectFlash, isEjecting, setIncidentReport } = useMission();
   const [source, setSource] = useState<Source>("idle");
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -214,10 +214,11 @@ export function VisionScanner({ onHazardDetected }: VisionScannerProps) {
   useEffect(() => {
     if (prevEjecting.current && !isEjecting) {
       setScanResult(null);
+      setIncidentReport(null);
       setStreamClear(false);
     }
     prevEjecting.current = isEjecting;
-  }, [isEjecting]);
+  }, [isEjecting, setIncidentReport]);
 
   const handleDetection = (data: AiScanResult) => {
     const rawItems = Array.isArray(data.batteries) ? data.batteries : [];
@@ -267,6 +268,17 @@ export function VisionScanner({ onHazardDetected }: VisionScannerProps) {
         totalWeight,
         batteries: enriched,
       });
+      setIncidentReport({
+        count,
+        totalDamage,
+        totalWeight,
+        batteries: enriched.map((b) => ({
+          type: b.type,
+          capacity: b.capacity,
+          dangerLevel: b.dangerLevel,
+          weightKg: b.weightKg,
+        })),
+      });
       setEjecting(false);
     }, 1200);
     window.setTimeout(() => {
@@ -279,6 +291,7 @@ export function VisionScanner({ onHazardDetected }: VisionScannerProps) {
     setIsAnalyzing(true);
     setError(null);
     setScanResult(null);
+    setIncidentReport(null);
     setStreamClear(false);
 
     try {
@@ -360,6 +373,7 @@ export function VisionScanner({ onHazardDetected }: VisionScannerProps) {
     setSource("webcam");
     setImageSrc(null);
     setScanResult(null);
+    setIncidentReport(null);
     setStreamClear(false);
   };
 
@@ -392,6 +406,7 @@ export function VisionScanner({ onHazardDetected }: VisionScannerProps) {
   const resetUpload = () => {
     setImageSrc(null);
     setScanResult(null);
+    setIncidentReport(null);
     setStreamClear(false);
   };
 
@@ -648,7 +663,7 @@ export function VisionScanner({ onHazardDetected }: VisionScannerProps) {
                 {scanResult.count === 1 ? "BATTERY" : "BATTERIES"}{" "}
                 INTERCEPTED
               </p>
-              <div className="mt-2 space-y-2">
+              <div className="mt-2 max-h-60 space-y-2 overflow-y-auto pr-2">
                 {scanResult.batteries.map((b, index) => (
                   <div
                     key={`${b.matchId}-${index}`}

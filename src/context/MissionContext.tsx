@@ -29,6 +29,18 @@ export type HazardBatchPayload = {
   }>;
 };
 
+export type IncidentReportData = {
+  count: number;
+  totalDamage: number;
+  totalWeight: number;
+  batteries: Array<{
+    type: string;
+    capacity: string;
+    dangerLevel: string;
+    weightKg: number;
+  }>;
+};
+
 type MissionContextValue = {
   phase: Phase;
   setPhase: (phase: Phase) => void;
@@ -46,6 +58,8 @@ type MissionContextValue = {
   isEjecting: boolean;
   lastInterception: Interception | null;
   recordBatchInterception: (batch: HazardBatchPayload) => void;
+  incidentReport: IncidentReportData | null;
+  setIncidentReport: (report: IncidentReportData | null) => void;
   explorerOpen: boolean;
   setExplorerOpen: (value: boolean) => void;
   simulatorOpen: boolean;
@@ -70,6 +84,7 @@ export function MissionProvider({ children }: { children: ReactNode }) {
   const [ejectFlash, setEjectFlash] = useState(false);
   const [isEjecting, setIsEjecting] = useState(false);
   const [lastInterception, setLastInterception] = useState<Interception | null>(null);
+  const [incidentReport, setIncidentReport] = useState<IncidentReportData | null>(null);
   const [explorerOpen, setExplorerOpen] = useState(false);
   const [simulatorOpen, setSimulatorOpen] = useState(false);
   const [cursorPointer, setCursorPointer] = useState(false);
@@ -112,6 +127,8 @@ export function MissionProvider({ children }: { children: ReactNode }) {
         window.setTimeout(() => setIsEjecting(false), 2500);
       },
       lastInterception,
+      incidentReport,
+      setIncidentReport,
       recordBatchInterception: (batch) => {
         const last = batch.batteries[batch.batteries.length - 1];
         if (last) {
@@ -142,6 +159,7 @@ export function MissionProvider({ children }: { children: ReactNode }) {
       ejectFlash,
       isEjecting,
       lastInterception,
+      incidentReport,
     ],
   );
 

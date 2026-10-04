@@ -1,9 +1,9 @@
-import { motion, useAnimation } from "framer-motion";
+import { AnimatePresence, motion, useAnimation } from "framer-motion";
 import { AlertOctagon, Hexagon } from "lucide-react";
 import { useMission } from "../context/MissionContext";
 
 export function CenterPanel() {
-  const { eject } = useMission();
+  const { eject, incidentReport } = useMission();
   const controls = useAnimation();
 
   const onEject = () => {
@@ -13,6 +13,44 @@ export function CenterPanel() {
       transition: { duration: 0.5, ease: "easeInOut" },
     });
     eject();
+  };
+
+  const downloadReport = () => {
+    if (!incidentReport) return;
+
+    const reportContent = `
+========================================
+VOLTINTERCEPT - INDUSTRIAL HAZARD REPORT
+========================================
+Date: ${new Date().toLocaleString()}
+Status: ${incidentReport.count > 0 ? "HAZARD DETECTED" : "CLEAR"}
+Total Batteries: ${incidentReport.count}
+Total Weight: ${incidentReport.totalWeight.toFixed(2)} kg
+Estimated Financial Damage Prevented: ₹${incidentReport.totalDamage.toLocaleString("en-IN")}
+
+DETAILED BREAKDOWN:
+${incidentReport.batteries
+  .map(
+    (b, i) =>
+      `[${i + 1}] ${b.type} | Danger:${b.dangerLevel} | Capacity: ${b.capacity} | Weight:${b.weightKg}kg`,
+  )
+  .join("\n")}
+========================================
+SYSTEM: EDGE VISION PIPELINE
+========================================
+  `.trim();
+
+    const blob = new Blob([reportContent], {
+      type: "text/plain;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `VoltIntercept_Report_${Date.now()}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -56,6 +94,23 @@ export function CenterPanel() {
         <AlertOctagon className="h-7 w-7" />
         MANUAL OVERRIDE EJECT
       </motion.button>
+
+      <AnimatePresence>
+        {incidentReport && incidentReport.count > 0 && (
+          <motion.button
+            type="button"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            onClick={downloadReport}
+            className="mt-4 w-full rounded-md border border-blue-500/50 bg-blue-600/20 px-4 py-3 font-mono uppercase tracking-widest text-blue-400 transition-all hover:bg-blue-600/40 hover:text-white"
+          >
+            📄 Download Incident Report
+          </motion.button>
+        )}
+      </AnimatePresence>
     </motion.section>
   );
 }
