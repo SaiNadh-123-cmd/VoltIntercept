@@ -1,12 +1,29 @@
 // This file automatically becomes an API endpoint at: your-site.pages.dev/api/scan
 export async function onRequestPost(context) {
   try {
-    const requestBody = await context.request.json();
-    const batteryCount = Number(requestBody.batteryCount ?? 0);
+    const { base64Image } = await context.request.json();
 
-    const prompt = `Our edge vision model just detected ${batteryCount} hazardous batteries on the conveyor belt. Generate a strict JSON industrial hazard report matching this exact structure: { "detected": true, "batteryCount": ${batteryCount}, "totalFinancialDamage": ${batteryCount * 120000}, "totalWeightKg": ${batteryCount * 0.05}, "batteries": [ { "batteryName": "18650 Cylindrical Cell", "capacity": "3000 mAh", "matchId": "18650-cell", "dangerLevel": "High", "financialDamage": 120000, "weightKg": 0.05 } ] }`;
+    const prompt = `Analyze this image for hazardous lithium-ion, lipo, or alkaline batteries. There may be multiple batteries in the image.
+Respond STRICTLY with raw JSON matching this structure (no markdown):
+{
+  "detected": true,
+  "batteryCount": 2,
+  "totalFinancialDamage": 240000,
+  "totalWeightKg": 0.10,
+  "batteries": [
+    {
+      "batteryName": "18650 Cylindrical Cell",
+      "capacity": "3000 mAh",
+      "matchId": "18650-cell",
+      "dangerLevel": "High",
+      "financialDamage": 120000,
+      "weightKg": 0.05
+    }
+  ]
+}
+If no battery is present, return: {"detected": false, "batteryCount": 0, "totalFinancialDamage": 0, "totalWeightKg": 0, "batteries": []}`;
 
-    // Get the hidden key you saved in the Cloudflare dashboard
+    // Using the stable 1.5-flash endpoint
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${context.env.GEMINI_API_KEY}`;
 
     const geminiResponse = await fetch(geminiUrl, {
@@ -15,7 +32,8 @@ export async function onRequestPost(context) {
       body: JSON.stringify({
         contents: [{
           parts: [
-            { text: prompt }
+            { text: prompt },
+            { inlineData: { mimeType: "image/jpeg", data: base64Image } }
           ]
         }]
       })
@@ -23,17 +41,14 @@ export async function onRequestPost(context) {
 
     const data = await geminiResponse.json();
 
-    // 1. Check if Google returned an API error (e.g. bad key, quota exceeded)
     if (data.error) {
-      throw new Error(`Google API Rejected: ${data.error.message}`);
+      return new Response(JSON.stringify({ error: data.error.message }), { status: 500 });
     }
 
-    // 2. Check if the response was blocked by safety settings or is empty
     if (!data.candidates || data.candidates.length === 0) {
-      throw new Error("Google returned an empty response. It may have been blocked by safety filters.");
+      return new Response(JSON.stringify({ error: "Gemini returned empty response." }), { status: 500 });
     }
 
-    // 3. Safely extract the text
     const rawText = data.candidates[0].content.parts[0].text;
 
     return new Response(rawText, {

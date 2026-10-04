@@ -283,53 +283,17 @@ export function VisionScanner({ onHazardDetected }: VisionScannerProps) {
 
     try {
       const compressedImage = await compressImage(rawBase64Image);
-      const imageBlob = await (await fetch(compressedImage)).blob();
-
-      const hfToken = import.meta.env.VITE_HF_TOKEN;
-      const hfHeaders: Record<string, string> = {};
-      if (hfToken) {
-        hfHeaders.Authorization = `Bearer ${hfToken}`;
-      }
-      const hfResponse = await fetch(
-        "https://api-inference.huggingface.co/models/kendrickfff/waste-classification-yolov8-ken",
-        {
-          method: "POST",
-          headers: hfHeaders,
-          body: imageBlob,
-        },
-      );
-
-      if (!hfResponse.ok) {
-        const errText = await hfResponse.text();
-        throw new Error(`Vision model error: ${hfResponse.status} ${errText}`);
-      }
-
-      const detections = await hfResponse.json();
-      if (!Array.isArray(detections)) {
-        throw new Error("Vision model returned an unexpected response");
-      }
-      const batteryCount = detections.filter((item) =>
-        String(item?.label ?? "")
-          .toLowerCase()
-          .includes("battery"),
-      ).length;
-
-      if (batteryCount <= 0) {
-        setStreamClear(true);
-        window.setTimeout(() => setStreamClear(false), 3500);
-        setScanCount((c) => c + 1);
-        return;
-      }
+      const base64Data = compressedImage.split(",")[1];
 
       const response = await fetch("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ batteryCount }),
+        body: JSON.stringify({ base64Image: base64Data }),
       });
 
       if (!response.ok) {
         const errText = await response.text();
-        throw new Error(`Backend Proxy Error: ${errText}`);
+        throw new Error(`Cloudflare Proxy Error: ${response.status} - ${errText}`);
       }
 
       const responseText = await response.text();
