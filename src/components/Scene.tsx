@@ -73,14 +73,14 @@ const CHIP_GRID: Array<[number, number]> = [
 
 const GPIO_PINS = [-0.3, -0.18, -0.06, 0.06, 0.18, 0.3];
 
-const PROC_EXPLODED = new THREE.Vector3(-15, 10, -10);
-const PROC_ASSEMBLED = new THREE.Vector3(0, -1, 0);
-const SENS_EXPLODED = new THREE.Vector3(15, 10, -10);
-const SENS_ASSEMBLED = new THREE.Vector3(0, 1.5, 0);
-const EJ_EXPLODED = new THREE.Vector3(-15, -10, -10);
-const EJ_ASSEMBLED = new THREE.Vector3(2, 0, 0);
-const EJ_STRIKE = new THREE.Vector3(-2, 0, -0.5);
-const BATTERY_CENTER = new THREE.Vector3(0, 0.2, 0.8);
+const PROC_EXPLODED = new THREE.Vector3(-15, 10, -2);
+const PROC_ASSEMBLED = new THREE.Vector3(0, -1, 3);
+const SENS_EXPLODED = new THREE.Vector3(15, 10, -2);
+const SENS_ASSEMBLED = new THREE.Vector3(0, 1.5, 3);
+const EJ_EXPLODED = new THREE.Vector3(-15, -10, -2);
+const EJ_ASSEMBLED = new THREE.Vector3(2, 0, 3);
+const EJ_STRIKE = new THREE.Vector3(-2, 0, 2);
+const BATTERY_CENTER = new THREE.Vector3(0, 0.2, 2.6);
 
 function Processor() {
   const ref = useRef<THREE.Group>(null);
@@ -96,7 +96,7 @@ function Processor() {
   });
 
   return (
-    <group ref={ref} position={[-15, 10, -10]}>
+    <group ref={ref} position={[-15, 10, -2]} scale={[3.5, 3.5, 3.5]}>
       <Float speed={2} rotationIntensity={0.5} floatIntensity={1.1}>
         <mesh castShadow>
           <boxGeometry args={[1.5, 0.1, 1.0]} />
@@ -147,7 +147,7 @@ function ThermalSensor() {
   });
 
   return (
-    <group ref={ref} position={[15, 10, -10]}>
+    <group ref={ref} position={[15, 10, -2]} scale={[3.5, 3.5, 3.5]}>
       <Float speed={1.7} rotationIntensity={0.45} floatIntensity={1}>
         <mesh castShadow rotation={[Math.PI / 2, 0, 0]}>
           <cylinderGeometry args={[0.42, 0.48, 0.7, 24]} />
@@ -188,7 +188,7 @@ function Ejector({ isEjecting }: { isEjecting: boolean }) {
     if (isEjecting && !wasEjecting.current) startTime.current = t;
     wasEjecting.current = isEjecting;
 
-    let scaleTarget = 1;
+    let scaleTarget = 3.5;
     if (!isEjecting) {
       const cycle = getCycle(t);
       target.set(
@@ -201,11 +201,11 @@ function Ejector({ isEjecting }: { isEjecting: boolean }) {
       if (e < 0.4) {
         const k = easeOutCubic(clamp01(e / 0.4));
         target.lerpVectors(ref.current.position, EJ_STRIKE, k);
-        scaleTarget = 1 + 2 * k;
+        scaleTarget = 3.5 * (1 + 2 * k);
       } else {
         const k = easeInQuad(clamp01((e - 0.4) / 1.0));
         target.set(EJ_STRIKE.x + k * 8.5, EJ_STRIKE.y, EJ_STRIKE.z);
-        scaleTarget = 3;
+        scaleTarget = 10.5;
       }
     }
 
@@ -217,7 +217,7 @@ function Ejector({ isEjecting }: { isEjecting: boolean }) {
   });
 
   return (
-    <group ref={ref} position={[-15, -10, -10]}>
+    <group ref={ref} position={[-15, -10, -2]} scale={[3.5, 3.5, 3.5]}>
       <Float speed={1.6} rotationIntensity={0.35} floatIntensity={0.7}>
         <mesh castShadow position={[0, 0, 0]}>
           <boxGeometry args={[0.9, 0.18, 0.9]} />
@@ -281,14 +281,14 @@ function BatteryTarget({ isEjecting }: { isEjecting: boolean }) {
     if (isEjecting) {
       const e = t - startTime.current;
       if (e < 0.35) {
-        scaleTarget = clamp01(e / 0.35);
+        scaleTarget = 3.5 * clamp01(e / 0.35);
         ref.current.position.set(
           BATTERY_CENTER.x,
           BATTERY_CENTER.y,
           BATTERY_CENTER.z,
         );
       } else if (e < 0.5) {
-        scaleTarget = 1;
+        scaleTarget = 3.5;
       } else if (e < 1.4) {
         const k = clamp01((e - 0.5) / 0.9);
         ref.current.position.set(
@@ -296,14 +296,14 @@ function BatteryTarget({ isEjecting }: { isEjecting: boolean }) {
           BATTERY_CENTER.y + Math.sin(k * Math.PI) * 0.5,
           BATTERY_CENTER.z,
         );
-        scaleTarget = 1;
+        scaleTarget = 3.5;
       } else {
         ref.current.position.set(
           BATTERY_CENTER.x + 7.5,
           BATTERY_CENTER.y,
           BATTERY_CENTER.z,
         );
-        scaleTarget = 1;
+        scaleTarget = 3.5;
       }
     } else {
       ref.current.position.copy(BATTERY_CENTER);
@@ -324,7 +324,7 @@ function BatteryTarget({ isEjecting }: { isEjecting: boolean }) {
   });
 
   return (
-    <group ref={ref} position={[0, 0.2, 0.8]} scale={0}>
+    <group ref={ref} position={[0, 0.2, 2.6]} scale={0}>
       <group ref={spin}>
         <mesh castShadow>
           <boxGeometry args={[0.62, 0.34, 0.4]} />
@@ -374,7 +374,7 @@ function EjectorRimLight({ isEjecting }: { isEjecting: boolean }) {
   return (
     <pointLight
       ref={light}
-      position={[0, 1.2, 1.6]}
+      position={[0, 1.2, 3.5]}
       color="#ef4444"
       intensity={0}
       distance={14}
@@ -410,6 +410,7 @@ export function Scene() {
         <pointLight position={[4, 3, 4]} intensity={18} color="#22d3ee" />
         <pointLight position={[-4, -2, 2]} intensity={10} color="#10b981" />
         <pointLight position={[2, 1, 3]} intensity={8} color="#ef4444" />
+        <pointLight position={[0, 0, 5]} intensity={8} color="#ffffff" />
         <EjectorRimLight isEjecting={isEjecting} />
         <ParallaxRig>
           <ParticleField />

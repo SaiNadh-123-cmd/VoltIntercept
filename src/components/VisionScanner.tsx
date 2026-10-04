@@ -713,7 +713,7 @@ SYSTEM: EDGE VISION PIPELINE
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.85 }}
               transition={{ type: "spring", stiffness: 260, damping: 20 }}
-              className="pointer-events-none absolute left-1/2 top-[8%] z-10 max-h-[76%] w-[86%] -translate-x-1/2 overflow-y-auto rounded-2xl border border-emerald-400/60 bg-slate-950/85 p-4 backdrop-blur-xl shadow-[0_0_40px_rgba(16,185,129,0.45)]"
+              className="pointer-events-none absolute left-1/2 top-[8%] z-10 max-h-[76%] min-h-0 w-[86%] -translate-x-1/2 overflow-y-auto rounded-2xl border border-emerald-400/60 bg-slate-950/85 p-4 backdrop-blur-xl shadow-[0_0_40px_rgba(16,185,129,0.45)]"
             >
               <p className="mb-2 flex items-center gap-1.5 font-mono text-[9px] tracking-[0.3em] text-emerald-300">
                 <ShieldCheck className="h-3.5 w-3.5" />
@@ -721,7 +721,10 @@ SYSTEM: EDGE VISION PIPELINE
                 {scanResult.count === 1 ? "BATTERY" : "BATTERIES"}{" "}
                 INTERCEPTED
               </p>
-              <div className="max-h-[250px] overflow-y-auto pr-2">
+              <div
+                className="pr-2"
+                style={{ maxHeight: "250px", overflowY: "auto" }}
+              >
                 {scanResult.batteries.map((b, index) => (
                   <div
                     key={`${b.matchId}-${index}`}
