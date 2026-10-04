@@ -139,15 +139,16 @@ function Processor({ isEjecting }: { isEjecting: boolean }) {
           </mesh>
         ))}
       </Float>
-      <Billboard position={[0, 1.0, 0]}>
+      <Billboard position={[0, 1.2, 0]}>
         <Text
-          fontSize={0.6}
-          color="#3b82f6"
           anchorX="center"
           anchorY="middle"
+          color="#3b82f6"
           font="https://fonts.gstatic.com/s/roboto/v20/KFOmCnqEu92Fr1Me5WZLCzYlKw.ttf"
-          outlineWidth={0.02}
+          fontSize={0.15}
+          letterSpacing={0.1}
           outlineColor="#000000"
+          outlineWidth={0.005}
         >
           EDGE COMPUTE MODULE
         </Text>
@@ -207,13 +208,14 @@ function ThermalSensor({ isEjecting }: { isEjecting: boolean }) {
       </Float>
       <Billboard position={[0, -1.2, 0]}>
         <Text
-          fontSize={0.6}
-          color="#ef4444"
           anchorX="center"
           anchorY="middle"
+          color="#ef4444"
           font="https://fonts.gstatic.com/s/roboto/v20/KFOmCnqEu92Fr1Me5WZLCzYlKw.ttf"
-          outlineWidth={0.02}
+          fontSize={0.15}
+          letterSpacing={0.1}
           outlineColor="#000000"
+          outlineWidth={0.005}
         >
           THERMAL VISION SENSOR
         </Text>
@@ -314,15 +316,16 @@ function Ejector({ isEjecting }: { isEjecting: boolean }) {
           />
         </mesh>
       </Float>
-      <Billboard position={[0, 0.85, 0]}>
+      <Billboard position={[0, 1.2, 0]}>
         <Text
-          fontSize={0.6}
-          color="#eab308"
           anchorX="center"
           anchorY="middle"
+          color="#eab308"
           font="https://fonts.gstatic.com/s/roboto/v20/KFOmCnqEu92Fr1Me5WZLCzYlKw.ttf"
-          outlineWidth={0.02}
+          fontSize={0.15}
+          letterSpacing={0.1}
           outlineColor="#000000"
+          outlineWidth={0.005}
         >
           PNEUMATIC EJECTOR
         </Text>
