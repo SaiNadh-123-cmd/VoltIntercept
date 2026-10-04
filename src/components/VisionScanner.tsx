@@ -211,12 +211,26 @@ export function VisionScanner({ onHazardDetected }: VisionScannerProps) {
   }, [ejectFlash]);
 
   const handleDetection = (data: AiScanResult) => {
-    const items = Array.isArray(data.batteries) ? data.batteries : [];
-    if (!data.detected || items.length === 0) {
+    const rawItems = Array.isArray(data.batteries) ? data.batteries : [];
+    const fallbackItem: AiBattery = {
+      batteryName: "18650 Cylindrical Cell",
+      capacity: "3000 mAh",
+      matchId: "18650-cell",
+      dangerLevel: "High",
+      financialDamage: 120000,
+      weightKg: 0.05,
+    };
+    const template = rawItems.length > 0 ? rawItems : [fallbackItem];
+    const count = Number(data.batteryCount ?? 0) || template.length;
+    if (!data.detected || count <= 0) {
       setStreamClear(true);
       window.setTimeout(() => setStreamClear(false), 3500);
       return;
     }
+    const items = Array.from(
+      { length: count },
+      (_, i) => template[i % template.length],
+    );
     const enriched = items.map(enrichBattery);
     const totalDamage =
       Number(data.totalFinancialDamage ?? 0) ||
@@ -251,12 +265,48 @@ export function VisionScanner({ onHazardDetected }: VisionScannerProps) {
 
     try {
       const compressedImage = await compressImage(rawBase64Image);
-      const base64Data = compressedImage.split(",")[1];
+      const imageBlob = await (await fetch(compressedImage)).blob();
+
+      const hfToken = import.meta.env.VITE_HF_TOKEN;
+      const hfHeaders: Record<string, string> = {};
+      if (hfToken) {
+        hfHeaders.Authorization = `Bearer ${hfToken}`;
+      }
+      const hfResponse = await fetch(
+        "https://api-inference.huggingface.co/models/kendrickfff/waste-classification-yolov8-ken",
+        {
+          method: "POST",
+          headers: hfHeaders,
+          body: imageBlob,
+        },
+      );
+
+      if (!hfResponse.ok) {
+        const errText = await hfResponse.text();
+        throw new Error(`Vision model error: ${hfResponse.status} ${errText}`);
+      }
+
+      const detections = await hfResponse.json();
+      if (!Array.isArray(detections)) {
+        throw new Error("Vision model returned an unexpected response");
+      }
+      const batteryCount = detections.filter((item) =>
+        String(item?.label ?? "")
+          .toLowerCase()
+          .includes("battery"),
+      ).length;
+
+      if (batteryCount <= 0) {
+        setStreamClear(true);
+        window.setTimeout(() => setStreamClear(false), 3500);
+        setScanCount((c) => c + 1);
+        return;
+      }
 
       const response = await fetch("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ base64Image: base64Data }),
+        body: JSON.stringify({ batteryCount }),
       });
 
       if (!response.ok) {
