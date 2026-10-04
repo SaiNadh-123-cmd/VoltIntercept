@@ -42,6 +42,7 @@ export type AiBattery = {
 };
 
 type EnrichedBattery = {
+  batteryName: string;
   type: string;
   capacity: string;
   matchId: string;
@@ -53,6 +54,10 @@ type EnrichedBattery = {
 };
 
 type ScanOutcome = {
+  detected: boolean;
+  batteryCount: number;
+  totalWeightKg: number;
+  totalFinancialDamage: number;
   count: number;
   totalDamage: number;
   totalWeight: number;
@@ -159,8 +164,10 @@ const enrichBattery = (battery: AiBattery): EnrichedBattery => {
   const profile = resolveProfile(String(battery.matchId ?? ""));
   const damageAmount =
     Number(battery.financialDamage ?? 0) || profile.financialDamageMah;
+  const displayName = String(battery.batteryName ?? "") || "Unknown Battery";
   return {
-    type: String(battery.batteryName ?? "") || "Unknown Battery",
+    batteryName: displayName,
+    type: displayName,
     capacity: String(battery.capacity ?? "—"),
     matchId: profile.id,
     confidence: Number(battery.confidence ?? 90),
@@ -263,6 +270,10 @@ export function VisionScanner({ onHazardDetected }: VisionScannerProps) {
         })),
       });
       setScanResult({
+        detected: true,
+        batteryCount: count,
+        totalWeightKg: totalWeight,
+        totalFinancialDamage: totalDamage,
         count,
         totalDamage,
         totalWeight,
@@ -507,6 +518,43 @@ export function VisionScanner({ onHazardDetected }: VisionScannerProps) {
     doc.save("VoltIntercept_Incident_Report.pdf");
   };
 
+  const downloadReport = () => {
+    const resultData = scanResult;
+    if (!resultData || !resultData.detected) return;
+
+    const reportContent = `
+========================================
+VOLTINTERCEPT - INDUSTRIAL HAZARD REPORT
+========================================
+Date: ${new Date().toLocaleString()}
+Status: HAZARD DETECTED
+Total Batteries: ${resultData.batteryCount}
+Total Weight: ${resultData.totalWeightKg} kg
+Estimated Financial Damage Prevented: ₹${resultData.totalFinancialDamage}
+
+DETAILED BREAKDOWN:
+${resultData.batteries
+  .map(
+    (b, i) =>
+      `[${i + 1}] ${b.batteryName} | Danger:${b.dangerLevel} | Capacity: ${b.capacity} | Weight:${b.weightKg}kg`,
+  )
+  .join("\n")}
+========================================
+SYSTEM: EDGE VISION PIPELINE
+========================================
+  `.trim();
+
+    const blob = new Blob([reportContent], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `VoltIntercept_Report_${Date.now()}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
       <div className="relative min-h-0 flex-1 overflow-hidden rounded-2xl border border-white/10 bg-black">
@@ -657,17 +705,17 @@ export function VisionScanner({ onHazardDetected }: VisionScannerProps) {
               transition={{ type: "spring", stiffness: 260, damping: 20 }}
               className="pointer-events-none absolute left-1/2 top-[8%] z-10 max-h-[76%] w-[86%] -translate-x-1/2 overflow-y-auto rounded-2xl border border-emerald-400/60 bg-slate-950/85 p-4 backdrop-blur-xl shadow-[0_0_40px_rgba(16,185,129,0.45)]"
             >
-              <p className="flex items-center gap-1.5 font-mono text-[9px] tracking-[0.3em] text-emerald-300">
+              <p className="mb-2 flex items-center gap-1.5 font-mono text-[9px] tracking-[0.3em] text-emerald-300">
                 <ShieldCheck className="h-3.5 w-3.5" />
                 {scanResult.count}{" "}
                 {scanResult.count === 1 ? "BATTERY" : "BATTERIES"}{" "}
                 INTERCEPTED
               </p>
-              <div className="mt-2 max-h-60 space-y-2 overflow-y-auto pr-2">
+              <div className="max-h-[250px] overflow-y-auto pr-2">
                 {scanResult.batteries.map((b, index) => (
                   <div
                     key={`${b.matchId}-${index}`}
-                    className="rounded-xl border border-white/10 bg-black/40 p-2.5"
+                    className="mb-2 rounded-xl border border-white/10 bg-black/40 p-2.5 last:mb-0"
                   >
                     <p className="text-sm font-black text-white">
                       {b.type}
@@ -697,6 +745,12 @@ export function VisionScanner({ onHazardDetected }: VisionScannerProps) {
                   ₹{scanResult.totalDamage.toLocaleString("en-IN")} SAVED
                 </p>
               </div>
+              <button
+                onClick={downloadReport}
+                className="pointer-events-auto mt-6 w-full bg-blue-500/20 border border-blue-400 text-blue-300 font-mono text-sm py-3 rounded hover:bg-blue-500/40 transition-colors shadow-[0_0_15px_rgba(59,130,246,0.3)]"
+              >
+                [ DOWNLOAD INCIDENT REPORT .TXT ]
+              </button>
               <motion.button
                 type="button"
                 onClick={generatePDFReport}
