@@ -1,14 +1,16 @@
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
-export async function onRequestOptions() {
-  return new Response(null, { headers: corsHeaders });
-}
+// Using 'onRequest' instead of 'onRequestPost' catches ALL methods.
+// This makes a 405 Method Not Allowed error impossible.
+export async function onRequest(context) {
+  if (context.request.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
 
-export async function onRequestPost(context) {
   try {
     const { base64Image } = await context.request.json();
 
