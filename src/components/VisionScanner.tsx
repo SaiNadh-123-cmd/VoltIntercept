@@ -125,16 +125,31 @@ const compressImage = async (
     img.src = base64Str;
     img.onload = () => {
       const canvas = document.createElement("canvas");
-      const scaleSize = Math.min(1, maxWidth / img.width);
-      canvas.width = Math.max(1, Math.round(img.width * scaleSize));
-      canvas.height = Math.max(1, Math.round(img.height * scaleSize));
-      const ctx = canvas.getContext("2d");
-      if (!ctx) {
-        resolve(base64Str);
-        return;
-      }
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      resolve(canvas.toDataURL("image/jpeg", 0.6));
+      let scaleSize = Math.min(1, maxWidth / img.width);
+      let quality = 0.6;
+      const render = () => {
+        canvas.width = Math.max(1, Math.round(img.width * scaleSize));
+        canvas.height = Math.max(1, Math.round(img.height * scaleSize));
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          resolve(base64Str);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const out = canvas.toDataURL("image/jpeg", quality);
+        const bytes = Math.round((out.length * 3) / 4);
+        if (bytes >= 1000000 && (quality > 0.2 || scaleSize > 0.25)) {
+          if (quality > 0.2) {
+            quality = Math.max(0.2, quality - 0.15);
+          } else {
+            scaleSize *= 0.8;
+          }
+          render();
+          return;
+        }
+        resolve(out);
+      };
+      render();
     };
     img.onerror = () => resolve(base64Str);
   });
@@ -267,6 +282,9 @@ export function VisionScanner({ onHazardDetected }: VisionScannerProps) {
       setScanCount((c) => c + 1);
     } catch (err) {
       console.error("Scanner Error:", err);
+      alert(
+        `Backend Error: ${err instanceof Error ? err.message : String(err)}`,
+      );
       const mockData: AiScanResult = {
         detected: true,
         batteryCount: 1,

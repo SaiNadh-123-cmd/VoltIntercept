@@ -1,7 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertTriangle,
-  ChevronLeft,
   Flame,
   Gauge,
   ShieldCheck,
@@ -104,10 +103,10 @@ export function ImpactSimulator() {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.96 }}
               onClick={() => setSimulatorOpen(false)}
-              className="absolute left-4 top-4 z-20 flex items-center gap-2 rounded-full border border-cyan-300/60 bg-slate-950/60 px-4 py-2.5 font-mono text-[11px] tracking-[0.2em] text-cyan-100 shadow-[0_0_22px_rgba(34,211,238,0.35)] backdrop-blur-md transition hover:border-cyan-200 hover:shadow-[0_0_40px_rgba(34,211,238,0.6)]"
+              className="absolute left-4 top-4 z-20 flex items-center gap-2 rounded-full border border-cyan-300/70 bg-slate-950/70 px-5 py-2.5 font-mono text-[11px] font-bold tracking-[0.2em] text-cyan-100 shadow-[0_0_28px_rgba(34,211,238,0.5)] backdrop-blur-md transition hover:border-cyan-200 hover:shadow-[0_0_44px_rgba(34,211,238,0.7)]"
             >
-              <ChevronLeft className="h-4 w-4" />
-              RETURN TO MISSION CONTROL
+              <span aria-hidden>⬅</span>
+              BACK TO DASHBOARD
             </motion.button>
 
             <div className="no-scrollbar absolute left-4 right-4 top-[4.5rem] z-20">
